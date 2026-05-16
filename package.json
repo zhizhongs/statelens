@@ -4,9 +4,9 @@
   "description": "Open-source MCP server for UI agent observation compression. Filters redundant screenshots, extracts semantic state changes, cuts VLM calls by 85%.",
   "type": "module",
   "bin": {
-    "statelens": "./dist/index.js"
+    "statelens": "./dist/src/index.js"
   },
-  "main": "./dist/pipeline/index.js",
+  "main": "./dist/src/pipeline/index.js",
   "files": [
     "dist",
     "README.md",
@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "serve": "node dist/server.js",
+    "serve": "node dist/src/server.js",
     "run": "node dist/demo/run.js",
     "measure": "node dist/eval/measure_tokens.js",
     "test": "vitest run",
