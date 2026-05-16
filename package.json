@@ -19,6 +19,8 @@
     "run": "node dist/demo/run.js",
     "demo:computer-use": "node dist/demo/agent_loop/playwright_login.js",
     "measure": "node dist/eval/measure_tokens.js",
+    "eval:live": "node dist/eval/live_full_test.js",
+    "accuracy": "node dist/eval/accuracy_check.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsc --watch"
@@ -50,6 +52,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/pixelmatch": "^5.2.6",
+    "playwright": "^1.60.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   }

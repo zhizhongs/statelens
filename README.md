@@ -168,6 +168,16 @@ At the end it reports both route-level downstream savings (full screenshot calls
 
 The routing helper [`routeObservation()`](./src/adapters/routeObservation.ts) is also exposed standalone if you already have your own capture pipeline and just want the decision. [`estimateRouteSavings()`](./src/adapters/routeObservation.ts) turns a list of route decisions into the same saved-token summary used by the live demo.
 
+To run the full `RESULTS.md`-style evaluation from a fresh live capture instead of the checked-in screenshot folders:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+npm run build
+npm run eval:live
+```
+
+That command captures the login flow on the fly, runs the same A/B efficiency harness as `npm run measure`, then runs the Haiku accuracy judge. It saves `eval/results/live_login_*.json` and `eval/results/live_login_*.accuracy.json` with the token, cost, latency, strict accuracy, and lenient accuracy fields used in [`RESULTS.md`](./RESULTS.md). Use `npm run eval:live -- --no-accuracy` when you only want the efficiency run.
+
 ## Measuring Savings
 
 The repo ships with an A/B harness that runs the same screenshot task twice against the Anthropic API — once with raw images, once routed through StateLens — and reports actual token deltas.
@@ -255,7 +265,7 @@ src/pipeline/        Pure TypeScript library (Person A owns)
 src/server.ts        MCP server (Person B owns)
 src/index.ts         CLI entry: serve | run | measure
 eval/                Token measurement harness — primary demo artifact
-demo/                Prerecorded screenshot sequences
+demo/                Live computer-use demo + prerecorded screenshot sequences
 tests/               Vitest unit tests
 ```
 

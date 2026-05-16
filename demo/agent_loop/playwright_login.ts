@@ -12,7 +12,8 @@
 // runnable without replaying demo/screenshots.
 //
 // Run with:
-//   npm run build && node dist/demo/agent_loop/playwright_login.js
+//   npm run build
+//   npm run demo:computer-use
 //
 // The demo navigates to a small data: URL with a couple of staged states so
 // no network access is required.
@@ -25,11 +26,19 @@ import {
   type ObservationRoute,
 } from '../../src/adapters/routeObservation.js';
 import { getTimeline, resetSession } from '../../src/pipeline/index.js';
+import { resetOcrWorker } from '../../src/pipeline/ocrDiff.js';
 
-interface DemoPage extends PlaywrightLikePage {
+export interface DemoPage extends PlaywrightLikePage {
   setContent(html: string): Promise<void>;
   fill(selector: string, value: string): Promise<void>;
   click(selector: string): Promise<void>;
+}
+
+export interface LiveLoginCapture {
+  screenshots: Buffer[];
+  filenames: string[];
+  mode: string;
+  scenario: 'login';
 }
 
 interface LaunchedBrowser {
@@ -41,19 +50,23 @@ interface ChromiumLike {
   launch(opts?: { headless?: boolean }): Promise<LaunchedBrowser>;
 }
 
+function shortRuntimeError(err: unknown): string {
+  const firstLine = (err instanceof Error ? err.message : String(err)).split('\n')[0];
+  return firstLine.length > 220 ? `${firstLine.slice(0, 217)}...` : firstLine;
+}
+
 async function loadPlaywright(): Promise<ChromiumLike | null> {
   try {
     // @ts-ignore - playwright is an optional runtime dependency for this demo
     const pw = await import('playwright');
     return pw.chromium as ChromiumLike;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
     console.warn('Playwright is not installed; using the built-in virtual computer-use page.');
     console.warn('Install the real browser runtime with:');
     console.warn('  npm install --save-dev playwright');
     console.warn('  npx playwright install chromium');
     console.warn('');
-    console.warn(`Underlying error: ${msg}`);
+    console.warn(`Underlying error: ${shortRuntimeError(err)}`);
     return null;
   }
 }
@@ -82,6 +95,50 @@ const LOGIN_PAGE = `
   </script>
 </body></html>
 `;
+
+interface LoginScenarioStep {
+  filename: string;
+  actionLabel: string;
+  run(page: DemoPage): Promise<void>;
+}
+
+const LIVE_LOGIN_STEPS: LoginScenarioStep[] = [
+  {
+    filename: '001.png',
+    actionLabel: 'navigate_login',
+    run: async (page) => {
+      await page.setContent(LOGIN_PAGE);
+    },
+  },
+  {
+    filename: '002.png',
+    actionLabel: 'observe:idle_recapture',
+    run: async () => {
+      // no-op: identical screenshot should be killed by the visual gate
+    },
+  },
+  {
+    filename: '003.png',
+    actionLabel: 'type_email',
+    run: async (page) => {
+      await page.fill('#email', 'user@example.com');
+    },
+  },
+  {
+    filename: '004.png',
+    actionLabel: 'type_password',
+    run: async (page) => {
+      await page.fill('#password', 'hunter2');
+    },
+  },
+  {
+    filename: '005.png',
+    actionLabel: 'submit_bad_password',
+    run: async (page) => {
+      await page.click('#submit');
+    },
+  },
+];
 
 function escapeHtml(text: string): string {
   return text
@@ -113,6 +170,27 @@ class VirtualLoginPage implements DemoPage {
 
   async screenshot(): Promise<Buffer> {
     const passwordMask = this.password ? '*'.repeat(Math.min(this.password.length, 12)) : '';
+    const stateFill = this.banner
+      ? '#fee2e2'
+      : this.password
+        ? '#dcfce7'
+        : this.email
+          ? '#dbeafe'
+          : '#f1f5f9';
+    const stateStroke = this.banner
+      ? '#ef4444'
+      : this.password
+        ? '#22c55e'
+        : this.email
+          ? '#3b82f6'
+          : '#94a3b8';
+    const stateLabel = this.banner
+      ? 'Error state'
+      : this.password
+        ? 'Password entered'
+        : this.email
+          ? 'Email entered'
+          : 'Waiting for input';
     const emailFill = this.email ? '#dbeafe' : '#ffffff';
     const passwordFill = this.password ? '#dcfce7' : '#ffffff';
     const bannerMarkup = this.banner
@@ -124,6 +202,12 @@ class VirtualLoginPage implements DemoPage {
       <svg xmlns="http://www.w3.org/2000/svg" width="900" height="620">
         <rect width="900" height="620" fill="#f8fafc"/>
         <rect x="56" y="56" width="500" height="480" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+        <rect x="584" y="56" width="260" height="480" rx="10" fill="${stateFill}" stroke="${stateStroke}" stroke-width="3"/>
+        <text x="614" y="128" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">Live state</text>
+        <text x="614" y="172" font-family="Arial, sans-serif" font-size="22" fill="#111827">${stateLabel}</text>
+        <rect x="614" y="216" width="190" height="18" rx="9" fill="${stateStroke}"/>
+        <rect x="614" y="258" width="150" height="18" rx="9" fill="${stateStroke}" opacity="0.72"/>
+        <rect x="614" y="300" width="110" height="18" rx="9" fill="${stateStroke}" opacity="0.44"/>
         <text x="78" y="116" font-family="Arial, sans-serif" font-size="36" font-weight="700" fill="#111827">Sign in</text>
         ${bannerMarkup}
         <text x="78" y="242" font-family="Arial, sans-serif" font-size="18" fill="#374151">Email</text>
@@ -158,9 +242,8 @@ async function createDemoTarget(): Promise<DemoTarget> {
         mode: 'Playwright browser',
       };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
       console.warn('Playwright could not launch Chromium; using the built-in virtual computer-use page.');
-      console.warn(`Underlying error: ${msg}`);
+      console.warn(`Underlying error: ${shortRuntimeError(err)}`);
     }
   }
 
@@ -169,6 +252,30 @@ async function createDemoTarget(): Promise<DemoTarget> {
     close: async () => {},
     mode: 'virtual computer-use page',
   };
+}
+
+export async function captureLiveLoginScreenshots(): Promise<LiveLoginCapture> {
+  const target = await createDemoTarget();
+  try {
+    const screenshots: Buffer[] = [];
+    const filenames: string[] = [];
+
+    for (const scenarioStep of LIVE_LOGIN_STEPS) {
+      await scenarioStep.run(target.page);
+      screenshots.push(await target.page.screenshot({ type: 'png' }));
+      filenames.push(scenarioStep.filename);
+    }
+
+    return {
+      screenshots,
+      filenames,
+      mode: target.mode,
+      scenario: 'login',
+    };
+  } finally {
+    await target.close();
+    await resetOcrWorker();
+  }
 }
 
 let mockVlmCalls = 0;
@@ -241,46 +348,34 @@ async function step(
   return route;
 }
 
-async function main() {
+export async function runLiveLoginDemo(): Promise<void> {
   const target = await createDemoTarget();
   try {
     const { page } = target;
     const sessionId = `playwright_demo_${Date.now()}`;
     const routes: ObservationRoute[] = [];
+    mockVlmCalls = 0;
     resetSession(sessionId);
 
     console.log(`Live computer-use agent loop: ${target.mode}, capturing screenshots on the fly.`);
     console.log('');
 
-    routes.push(await step(page, sessionId, 'navigate_login', async () => {
-      await page.setContent(LOGIN_PAGE);
-    }));
-
-    routes.push(await step(page, sessionId, 'observe:idle_recapture', async () => {
-      // no-op: identical screenshot should be killed by the visual gate
-    }));
-
-    routes.push(await step(page, sessionId, 'type_email', async () => {
-      await page.fill('#email', 'user@example.com');
-    }));
-
-    routes.push(await step(page, sessionId, 'type_password', async () => {
-      await page.fill('#password', 'hunter2');
-    }));
-
-    routes.push(await step(page, sessionId, 'submit_bad_password', async () => {
-      await page.click('#submit');
-    }));
+    for (const scenarioStep of LIVE_LOGIN_STEPS) {
+      routes.push(await step(page, sessionId, scenarioStep.actionLabel, () => scenarioStep.run(page)));
+    }
 
     console.log('');
     console.log(`Mock VLM calls actually made: ${mockVlmCalls}`);
     printFinalSummary(sessionId, routes);
   } finally {
     await target.close();
+    await resetOcrWorker();
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runLiveLoginDemo().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

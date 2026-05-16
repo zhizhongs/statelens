@@ -1,26 +1,34 @@
 # Live Demo Script — Cursor + StateLens
 
-This is the exact flow to run during the pitch. Two parts: numbers first (slide), live MCP demo second (Cursor window).
+This is the exact flow to run during the pitch. Two parts: live full evaluation for numbers, route demo second (Cursor window).
 
 ## Part 1 — Headline Numbers (Slide)
 
-Show the table from `eval/results/phase3_baseline.json`. Lead with the cost reduction.
+Show the table from `RESULTS.md`, or run the live evaluation below and show the saved `eval/results/live_login_*.json` plus `*.accuracy.json` files. Lead with the cost reduction and lenient accuracy.
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+npm run build
+npm run eval:live
+```
+
+This captures fresh login-flow screenshots, runs the A/B efficiency harness, runs the Haiku accuracy judge, and writes the same schema used by `RESULTS.md`.
 
 ```
-Task: 12-frame login flow analysis  •  Model: claude-sonnet-4-6
+Task: live computer-use login flow  •  Model: claude-sonnet-4-6
 ─────────────────────────────────────────────────────────────────
 Baseline (raw images)           StateLens compression
-  12 API calls                    2 Sonnet text + 5 Haiku vision
-  19,008 input tokens             6,562 input tokens
-  $0.0645                         $0.0107
+  raw screenshot calls            text observations + selected Haiku vision
+  response.usage tokens           response.usage tokens
+  baseline cost                   compressed cost
 ─────────────────────────────────────────────────────────────────
-  → 83% cost reduction, 65% input-token reduction
-  → 5 of 12 frames filtered entirely (zero AI calls)
+  → token reduction, cost reduction, strict accuracy, lenient accuracy
+  → saved under eval/results/live_login_*.json
 ```
 
 Talking points (15 seconds):
 
-> "These numbers come from the Anthropic API itself — `response.usage.input_tokens`. We ran the same 12-screenshot task twice against Claude Sonnet, once sending raw images, once routed through StateLens. The savings include Haiku tokens consumed inside StateLens — we count those against ourselves so this isn't a 'shifted to a cheaper model' trick. Real numbers, reproducible: `npm run measure`."
+> "These numbers come from the Anthropic API itself — `response.usage.input_tokens`. We capture the live flow, run it twice against Claude Sonnet, once sending raw images and once routed through StateLens. The savings include Haiku tokens consumed inside StateLens — we count those against ourselves so this isn't a 'shifted to a cheaper model' trick. Real numbers, reproducible: `npm run eval:live`."
 
 ## Part 2 — Live Computer-Use Demo in Cursor
 
@@ -32,7 +40,7 @@ Talking points (15 seconds):
    - `npm install --save-dev playwright`
    - `npx playwright install chromium`
 3. The repo builds cleanly with `npm run build`.
-4. `eval/results/phase3_login_with_text.json` or `RESULTS.md` is open in a side panel for the headline numbers.
+4. `RESULTS.md` or the latest `eval/results/live_login_*.json` is open in a side panel for the headline numbers.
 5. The Cursor agent chat is open (`Cmd+L`).
 
 **The exact prompt to paste:**
@@ -47,6 +55,19 @@ npm run demo:computer-use
 Then summarize the final "Live StateLens session summary" in 3-5 bullets.
 Include the downstream full screenshot calls avoided, estimated input tokens saved,
 pipeline VLM calls saved, and pipeline estimated tokens saved.
+```
+
+For the full `RESULTS.md`-style run in Cursor, paste this instead:
+
+```
+Run the StateLens live full evaluation. Do not replay demo/screenshots.
+Run:
+
+npm run build
+npm run eval:live
+
+Then summarize the saved efficiency JSON and accuracy JSON paths, token reduction,
+cost reduction, strict accuracy, and lenient accuracy.
 ```
 
 **What should happen:**
@@ -88,13 +109,13 @@ Run `npm run demo:computer-use` 3 times back-to-back. All three runs must produc
 
 - **Playwright missing** → run `npm install --save-dev playwright` and `npx playwright install chromium`.
 - **No final savings block** → check that `npm run build` succeeded and that Cursor ran `npm run demo:computer-use`, not the old folder prompt.
-- **Final summary is wrong** → the importance scorer may be missing keyframes. Run `npm run measure` and inspect `eval/results/run_*.json` per-frame to see what each frame got classified as.
+- **Final summary is wrong** → the importance scorer may be missing keyframes. Run `npm run eval:live` and inspect `eval/results/live_login_*.json` per-frame to see what each frame got classified as.
 
 ## Backup Plan
 
 If the live demo breaks during the pitch:
 1. Don't panic — switch to the recording at `docs/demo_recording.mov` (record this in Phase 5).
-2. Or show `npm run measure` running in a terminal — the harness produces the same value proposition without depending on Cursor.
+2. Or show `npm run eval:live` running in a terminal — the harness produces the same value proposition without depending on Cursor.
 3. Or use the folder replay prompt with `demo/screenshots/login_flow/` as a fallback; label it clearly as replay mode.
 
 The harness is your safety net. The Cursor demo is the showpiece.
