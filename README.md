@@ -75,10 +75,79 @@ The agent calls `statelens_observe` for each frame. StateLens filters redundant 
 
 | Tool | Description |
 |---|---|
-| `statelens_observe` | Analyze a screenshot for changes since the last observation. Returns structured diff. |
+| `statelens_observe` | Analyze a screenshot for changes since the last observation. Returns structured diff. Accepts either `screenshot_path` (local file) or `screenshot_base64` (in-memory image). |
 | `statelens_timeline` | Get the semantic timeline of UI state changes for a session, with cost metrics. |
 | `statelens_compare` | Compare two screenshots directly. No session required. |
 | `statelens_reset` | Reset a session, clearing stored state. |
+
+`statelens_observe` requires exactly one of `screenshot_path` or `screenshot_base64`. Pass `screenshot_base64` when the agent holds the screenshot in memory (a `data:` URL prefix is tolerated). `mime_type` is accepted but informational — sharp auto-detects the actual format.
+
+## Closed MCP Clients (Claude Code, Cursor, Claude Desktop)
+
+These clients control their own screenshot loop, so we cannot intercept it from code. The integration is best-effort: install the MCP server, then attach a policy prompt that tells the agent when to call StateLens.
+
+### Policy prompt
+
+Paste this into the agent's system / project prompt:
+
+```text
+Before reasoning over any screenshot, call statelens_observe with the current
+screenshot and session_id.
+
+If changed=false, do not send the screenshot to a vision model. Continue from
+the previous state unless the task explicitly requires visual inspection.
+
+If keyframe=true and vlm_called=false, use event_summary, text_diff, and
+changed_regions as the primary observation.
+
+If event_type is invalid_screenshot or analysis_error, fall back to normal
+screenshot reasoning.
+
+Call statelens_timeline before summarizing the session or reporting what
+happened.
+```
+
+### Known limitations
+
+- Compliance is voluntary: a closed client may skip the tool on any given turn.
+- Token accounting is approximate: we only see calls the agent actually makes.
+- For reliable interception, use the in-process adapter path below.
+
+## In-Process Agent Integration (Custom Agents, Demos, Eval Harnesses)
+
+For agents whose runtime you control, StateLens ships a routing helper and a Playwright reference adapter that put the decision in code rather than in a prompt.
+
+```ts
+import { captureAndRoute } from 'statelens/dist/src/adapters/playwright.js';
+
+const { observation, route, screenshot } = await captureAndRoute(page, {
+  sessionId: 'login_flow',
+  actionLabel: 'click_submit',
+});
+
+switch (route.route) {
+  case 'skip_vision':
+    // No meaningful change — keep going with the prior state.
+    break;
+  case 'use_text_observation':
+    await reasoningModel({ text: route.context });
+    break;
+  case 'use_full_vision':
+    await reasoningModel({ image: screenshot });
+    break;
+}
+```
+
+The adapter has no hard dependency on Playwright — it accepts any object with `screenshot(): Promise<Buffer>`, which means Puppeteer, Playwright, or your own browser/desktop driver all work. The reference demo is at [`demo/agent_loop/playwright_login.ts`](./demo/agent_loop/playwright_login.ts) and requires Playwright as an optional runtime dep:
+
+```bash
+npm install --save-dev playwright
+npx playwright install chromium
+npm run build
+node dist/demo/agent_loop/playwright_login.js
+```
+
+The routing helper [`routeObservation()`](./src/adapters/routeObservation.ts) is also exposed standalone if you already have your own capture pipeline and just want the decision.
 
 ## Measuring Savings
 
