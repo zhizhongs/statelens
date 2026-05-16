@@ -171,6 +171,7 @@ See [`RESULTS.md`](./RESULTS.md) for the full methodology and [`docs/DEMO_AND_EV
 ## Docs
 
 - [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md) — proxy implementation details
+- [`docs/SDK_MIDDLEWARE_IMPLEMENTATION.md`](./docs/SDK_MIDDLEWARE_IMPLEMENTATION.md) — planned SDK wrapper design
 - [`DESIGN.md`](./DESIGN.md) — architecture and product direction
 - [`docs/DEMO_AND_EVAL.md`](./docs/DEMO_AND_EVAL.md) — demo, eval, and measurement commands
 

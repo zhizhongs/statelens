@@ -10,6 +10,7 @@ Two people, two role docs, phased work with merge checkpoints.
 | [PIPELINE_PHASE2_IMPLEMENTATION.md](./PIPELINE_PHASE2_IMPLEMENTATION.md) | **Person A** | Phase 2 implementation design for importance scoring, selective VLM, usage accounting, and timeline assembly |
 | [POST_PHASE3_AGENT_INTEGRATION.md](./POST_PHASE3_AGENT_INTEGRATION.md) | **Shared** | Supplementary design for integrating the completed Phase 3 pipeline into real computer-use agent loops |
 | [PROXY_IMPLEMENTATION.md](./PROXY_IMPLEMENTATION.md) | **Shared** | Implementation design for the Anthropic-compatible local proxy/gateway |
+| [SDK_MIDDLEWARE_IMPLEMENTATION.md](./SDK_MIDDLEWARE_IMPLEMENTATION.md) | **Shared** | Implementation design for the planned in-process Anthropic SDK wrapper |
 | [DEMO_AND_EVAL.md](./DEMO_AND_EVAL.md) | **Person B** | Demo, live eval, and measurement commands |
 | [DEMO_SCRIPT.md](./DEMO_SCRIPT.md) | **Person B** | Exact prompt and flow for the live Cursor MCP demo + stress-test checklist + backup plan |
 
