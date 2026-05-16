@@ -6,6 +6,7 @@ Two people, two role docs, phased work with merge checkpoints.
 |---|---|---|
 | [ROLE_PIPELINE.md](./ROLE_PIPELINE.md) | **Person A** | `src/pipeline/` — image processing library (Stages 1-6) |
 | [ROLE_DISTRIBUTION.md](./ROLE_DISTRIBUTION.md) | **Person B** | MCP server, CLI, measurement harness, demo, README, pitch. Also Anthropic console. |
+| [PIPELINE_PHASE1_IMPLEMENTATION.md](./PIPELINE_PHASE1_IMPLEMENTATION.md) | **Person A** | Phase 1 implementation design for Stages 1-3 and the minimal `observe()` wiring |
 
 Shared spec: [`../DESIGN.md`](../DESIGN.md)
 
