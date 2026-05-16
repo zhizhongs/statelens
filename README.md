@@ -22,6 +22,61 @@ npm run build
 npm link
 ```
 
+## End-to-End: From `npm install` To Measured Savings
+
+Three commands, one terminal, real Anthropic API dollars. No code changes to your agent.
+
+### 1. Install
+
+```bash
+npm install -g statelens
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### 2. Start The Proxy
+
+```bash
+statelens proxy --port 18443
+```
+
+The proxy is an Anthropic-compatible endpoint. It intercepts `POST /v1/messages`, runs the StateLens pipeline on the screenshot blocks, and forwards a rewritten request upstream.
+
+### 3. Point Your Agent At It
+
+Any Anthropic SDK-based computer-use agent works. The only line that changes:
+
+```ts
+const client = new Anthropic({
+  baseURL: 'http://127.0.0.1:18443',  // ← that's the entire integration
+});
+```
+
+### 4. Run The A/B And Read The Ledger
+
+```bash
+npm run measure -- demo/screenshots/login_flow
+```
+
+You get a one-page report straight from `response.usage.input_tokens`:
+
+```text
+Task: 12-frame login flow  •  Model: claude-sonnet-4-6
+─────────────────────────────────────────────────────────────
+Baseline (raw images)        StateLens proxy
+  36,255 input tokens          6,562 input tokens
+  $0.1162                      $0.0115
+─────────────────────────────────────────────────────────────
+  → 81.9% token reduction   90.1% cost reduction   100% accuracy
+```
+
+Inspect what the proxy actually did:
+
+```bash
+curl http://127.0.0.1:18443/sessions/<id>/timeline
+```
+
+Numbers are real Anthropic API token counts and include the Haiku tokens StateLens spends internally — no "shifted to a cheaper model" trick. Full methodology in [`RESULTS.md`](./RESULTS.md).
+
 ## Use The Proxy
 
 Use the Anthropic-compatible proxy when your agent or SDK can set `ANTHROPIC_BASE_URL`. This is the most transparent integration because StateLens sits directly in the model-request path.

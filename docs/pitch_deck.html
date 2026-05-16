@@ -1,0 +1,1403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>StateLens — Pitch Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #131829;
+    --surface-2: #1a2138;
+    --border: #232b44;
+    --text: #e6e9ef;
+    --muted: #8b95a8;
+    --dim: #5a6478;
+    --cyan: #22d3ee;
+    --cyan-dim: #0e7490;
+    --green: #10b981;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --purple: #a78bfa;
+    --slide-w: 1280px;
+    --slide-h: 720px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: #050811;
+    color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .deck {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stage {
+    position: relative;
+    width: var(--slide-w);
+    height: var(--slide-h);
+    transform-origin: center center;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+    padding: 36px 52px 28px;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 14px;
+    box-shadow: 0 30px 100px rgba(0,0,0,0.5);
+  }
+  .slide.active { display: flex; }
+
+  /* Top chrome */
+  .slide-chrome {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .slide-chrome .brand { color: var(--cyan); font-weight: 600; }
+  .slide-chrome .num { color: var(--muted); }
+
+  /* Typography */
+  h1 {
+    font-size: 38px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  h1.huge { font-size: 64px; line-height: 1.05; }
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  h2.subtitle {
+    font-size: 14px;
+    color: var(--cyan);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 6px;
+  }
+  h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  p { font-size: 14px; line-height: 1.5; color: var(--text); }
+  p.lead { font-size: 16px; line-height: 1.45; color: var(--text); margin-bottom: 10px; }
+  p.muted { color: var(--muted); }
+
+  strong { color: var(--cyan); font-weight: 600; }
+  em { color: var(--amber); font-style: normal; font-weight: 500; }
+  a { color: var(--cyan); text-decoration: none; }
+
+  .accent-green { color: var(--green); }
+  .accent-red { color: var(--red); }
+  .accent-amber { color: var(--amber); }
+  .accent-purple { color: var(--purple); }
+
+  ul, ol {
+    padding-left: 18px;
+    color: var(--text);
+  }
+  li { font-size: 13px; line-height: 1.5; margin-bottom: 3px; }
+  li strong { color: var(--cyan); }
+
+  /* Code */
+  pre, code {
+    font-family: 'JetBrains Mono', 'Menlo', monospace;
+  }
+  code {
+    background: var(--surface-2);
+    color: var(--cyan);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+  pre {
+    background: #060914;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    overflow: hidden;
+    font-size: 11px;
+    line-height: 1.45;
+    color: #cdd6e0;
+  }
+  pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    font-size: inherit;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th, td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  td.num { text-align: right; font-family: 'JetBrains Mono', monospace; }
+  th.num { text-align: right; }
+  tr:last-child td { border-bottom: none; }
+  td .big { font-weight: 700; color: var(--cyan); }
+  td .pos { color: var(--green); font-weight: 700; }
+  td .neg { color: var(--red); font-weight: 700; }
+
+  /* Cards / Layout */
+  .row { display: flex; gap: 14px; align-items: stretch; }
+  .col { flex: 1; min-width: 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .card.tight { padding: 10px 12px; }
+  .card.cyan { border-color: var(--cyan-dim); background: linear-gradient(180deg, rgba(34,211,238,0.06), transparent); }
+  .card.green { border-color: rgba(16,185,129,0.4); background: linear-gradient(180deg, rgba(16,185,129,0.06), transparent); }
+  .card.amber { border-color: rgba(245,158,11,0.4); background: linear-gradient(180deg, rgba(245,158,11,0.06), transparent); }
+  .card.red   { border-color: rgba(239,68,68,0.4); background: linear-gradient(180deg, rgba(239,68,68,0.06), transparent); }
+
+  .stat { text-align: center; padding: 12px 10px; }
+  .stat .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat .num.huge { font-size: 44px; }
+  .stat .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* Pipeline diagram */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+    padding: 8px 0;
+  }
+  .pipe-stage {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 6px;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  .pipe-stage .n {
+    color: var(--cyan);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    display: block;
+    margin-bottom: 3px;
+    letter-spacing: 0.05em;
+  }
+  .pipe-stage.local { border-color: rgba(16,185,129,0.5); }
+  .pipe-stage.local .n { color: var(--green); }
+  .pipe-stage.vlm { border-color: rgba(245,158,11,0.5); }
+  .pipe-stage.vlm .n { color: var(--amber); }
+  .pipe-arrow { color: var(--dim); font-size: 13px; }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    background: var(--surface-2);
+    color: var(--cyan);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.04em;
+  }
+  .badge.green { color: var(--green); border-color: rgba(16,185,129,0.4); }
+  .badge.amber { color: var(--amber); border-color: rgba(245,158,11,0.4); }
+  .badge.red   { color: var(--red); border-color: rgba(239,68,68,0.4); }
+
+  /* Speaker notes */
+  .note {
+    position: absolute;
+    bottom: 14px;
+    left: 52px;
+    right: 52px;
+    background: var(--surface);
+    border-left: 3px solid var(--cyan);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--muted);
+    border-radius: 4px;
+    display: none;
+    line-height: 1.4;
+  }
+  .note .label {
+    color: var(--cyan);
+    font-weight: 600;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 2px;
+  }
+  body.notes .note { display: block; }
+  body.notes .slide { padding-bottom: 110px; }
+
+  /* Hero (title slide) */
+  .hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: left;
+  }
+  .hero .logo-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--cyan);
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .hero .logo-mark .dot {
+    width: 9px;
+    height: 9px;
+    background: var(--cyan);
+    border-radius: 50%;
+    box-shadow: 0 0 16px var(--cyan);
+  }
+  .hero .tagline {
+    font-size: 21px;
+    color: var(--muted);
+    margin-top: 8px;
+    margin-bottom: 22px;
+    line-height: 1.35;
+    max-width: 980px;
+  }
+  .hero .tagline strong { color: var(--text); font-weight: 600; }
+  .hero .proof {
+    border-left: 3px solid var(--cyan);
+    padding: 6px 0 6px 14px;
+    font-size: 14px;
+    max-width: 980px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .hero .pipeline-mini {
+    margin-top: 22px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .hero .pipeline-mini span { color: var(--cyan); }
+
+  /* Footer */
+  .slide-footer {
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* HUD */
+  .hud {
+    position: fixed;
+    bottom: 16px;
+    right: 20px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: rgba(10,14,26,0.7);
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+  }
+  .hud button {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .hud button:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+  .hud .counter { min-width: 60px; text-align: center; }
+
+  /* Help overlay */
+  .help {
+    position: fixed;
+    top: 16px;
+    left: 20px;
+    z-index: 10;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    background: rgba(10,14,26,0.6);
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .help kbd {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--cyan);
+    font-size: 10px;
+  }
+
+  /* Slide-specific layout helpers */
+  .center-y { display: flex; flex-direction: column; justify-content: center; flex: 1; }
+  .mt-sm { margin-top: 8px; }
+  .mt    { margin-top: 12px; }
+  .mt-lg { margin-top: 18px; }
+  .mb-sm { margin-bottom: 8px; }
+  .tiny { font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .small { font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .stretch { flex: 1; display: flex; flex-direction: column; min-height: 0; height: 100%; }
+  .body-area { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  pre.compact { padding: 8px 10px; font-size: 10.5px; line-height: 1.4; }
+  table.compact th, table.compact td { padding: 5px 8px; font-size: 12px; }
+  table.compact th { font-size: 10px; }
+
+  .arrow-flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    flex-wrap: wrap;
+  }
+  .arrow-flow .step {
+    background: var(--surface-2);
+    color: var(--text);
+    padding: 4px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .arrow-flow .step.cyan { color: var(--cyan); border-color: var(--cyan-dim); }
+  .arrow-flow .step.red  { color: var(--red); border-color: rgba(239,68,68,0.4); }
+  .arrow-flow .arrow { color: var(--dim); }
+
+  /* Tier list */
+  .tier {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+    margin-bottom: 8px;
+  }
+  .tier-rank {
+    width: 54px;
+    flex-shrink: 0;
+    background: var(--surface-2);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+    font-size: 9px;
+    padding: 6px;
+    line-height: 1.2;
+  }
+  .tier-rank .n { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+
+  /* Two-col title slides */
+  .split { display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; flex: 1; min-height: 0; }
+
+  /* Quadrant matrix */
+  .quad {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    height: 220px;
+  }
+  .quad > div {
+    background: var(--surface);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-size: 11px;
+  }
+  .quad .label { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .quad .star { color: var(--cyan); font-weight: 700; font-size: 14px; }
+
+  /* Bar chart for cost reduction */
+  .barchart {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  .barrow { display: grid; grid-template-columns: 170px 1fr 120px; gap: 10px; align-items: center; font-size: 11px; }
+  .barrow .lbl { color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  .barrow .bar {
+    height: 18px;
+    background: var(--surface-2);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .barrow .bar .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: linear-gradient(90deg, var(--cyan-dim), var(--cyan));
+    border-radius: 4px;
+  }
+  .barrow .bar .fill.red { background: linear-gradient(90deg, #7f1d1d, var(--red)); }
+  .barrow .bar .fill.green { background: linear-gradient(90deg, #047857, var(--green)); }
+  .barrow .val { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-align: right; }
+  .barrow .val.pos { color: var(--green); font-weight: 700; }
+  .barrow .val.neg { color: var(--red); font-weight: 700; }
+
+  /* Timeline rail */
+  .rail {
+    position: relative;
+    padding: 10px 0 6px;
+  }
+  .rail::before {
+    content: '';
+    position: absolute;
+    top: 18px; left: 8px; right: 8px;
+    height: 2px;
+    background: var(--border);
+  }
+  .rail-events { display: flex; justify-content: space-between; position: relative; }
+  .rail-event {
+    text-align: center;
+    z-index: 1;
+    width: 70px;
+  }
+  .rail-event .dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--cyan);
+    margin: 0 auto 6px;
+  }
+  .rail-event.skip .dot { border-color: var(--dim); background: var(--bg); }
+  .rail-event.fail .dot { border-color: var(--red); background: var(--red); }
+  .rail-event .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    line-height: 1.25;
+  }
+  .rail-event.skip .lbl { color: var(--dim); }
+  .rail-event.fail .lbl { color: var(--red); }
+
+  /* Appendix lists */
+  .feat-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .feat-cols h3 { color: var(--cyan); margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .feat-cols.three { grid-template-columns: 1fr 1fr 1fr; }
+  .feat-cols.three .col h3.amber { color: var(--amber); }
+  .feat-cols.three .col h3.red { color: var(--red); }
+  .feat-cols ul { list-style: none; padding: 0; }
+  .feat-cols li {
+    font-size: 10.5px;
+    color: var(--text);
+    padding: 3px 0 3px 12px;
+    position: relative;
+    line-height: 1.35;
+    border-bottom: 1px dashed var(--border);
+  }
+  .feat-cols li::before {
+    content: '›';
+    position: absolute;
+    left: 0;
+    color: var(--cyan);
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  .feat-cols.three .col:nth-child(2) li::before { color: var(--amber); }
+  .feat-cols.three .col:nth-child(3) li::before { color: var(--red); }
+
+  /* Print */
+  @media print {
+    body { background: white; }
+    .hud, .help { display: none; }
+    .deck { position: static; display: block; }
+    .stage { transform: none !important; width: 100%; height: auto; }
+    .slide {
+      display: flex !important;
+      position: relative;
+      inset: auto;
+      page-break-after: always;
+      border-radius: 0;
+      box-shadow: none;
+      width: 100%;
+      height: 100vh;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="help">
+  <kbd>←</kbd> <kbd>→</kbd> navigate · <kbd>N</kbd> notes · <kbd>F</kbd> fullscreen
+</div>
+
+<div class="deck">
+  <div class="stage" id="stage">
+
+    <!-- ============== SLIDE 1: TITLE ============== -->
+    <section class="slide" data-slide="1">
+      <div class="slide-chrome">
+        <span class="brand">STATELENS</span>
+        <span class="num">01 / 13</span>
+      </div>
+      <div class="hero">
+        <div class="logo-mark"><span class="dot"></span> STATELENS</div>
+        <h1 class="huge">The observation compression layer for UI agents.</h1>
+        <p class="tagline">Computer-use agents waste money re-reading screenshots where nothing meaningful changed. <strong>StateLens turns screenshot streams into semantic state changes before the expensive model sees them.</strong></p>
+        <div class="proof">
+          <strong>Proof point —</strong> 81–90% cost reduction across two adversarial screenshot scenarios with 78–100% event-capture accuracy, measured with real Anthropic API usage. Now shipping as a <strong>drop-in Anthropic-compatible proxy</strong> — change one <code>baseURL</code> and your agent gets the savings with zero code changes.
+        </div>
+        <div class="pipeline-mini">
+          screenshot stream <span>→</span> StateLens proxy <span>→</span> compact events <span>→</span> agent reasoning
+        </div>
+      </div>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        Not another browser agent — the layer every browser or computer-use agent should call before spending vision tokens. The proxy form means no SDK swap, no MCP plumbing — just a different baseURL.
+      </div>
+    </section>
+
+    <!-- ============== SLIDE 2: PROBLEM ============== -->
+    <section class="slide" data-slide="2">
+      <div class="slide-chrome">
+        <span class="brand">PROBLEM</span>
+        <span class="num">02 / 13</span>
+      </div>
+      <h2 class="subtitle">The Problem</h2>
+      <h1>Agents are paying to rediscover the same screen.</h1>
+
+      <div class="mt-lg">
+        <div class="arrow-flow">
+          <span class="step">screenshot</span><span class="arrow">→</span>
+          <span class="step cyan">vision model reasons</span><span class="arrow">→</span>
+          <span class="step">action</span><span class="arrow">→</span>
+          <span class="step">screenshot</span><span class="arrow">→</span>
+          <span class="step cyan">vision model reasons <em>again</em></span>
+        </div>
+      </div>
+
+      <div class="grid-2 mt-lg">
+        <div class="card red">
+          <h3 class="accent-red">That loop is expensive because…</h3>
+          <ul>
+            <li>many consecutive screenshots are <strong>identical or nearly identical</strong></li>
+            <li>small UI changes happen in <strong>one region</strong>, not the whole screen</li>
+            <li>text changes (errors, validation) can be <strong>extracted locally</strong></li>
+            <li>raw screenshot reasoning leaves <strong>little persistent observability</strong></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>The pain</h3>
+          <p>Teams pay model prices for <em>repeated visual context</em>, then still have to debug what happened manually.</p>
+          <p class="small mt-sm">The waste isn't that vision is useless. The waste is using <strong>full vision as the default observation mechanism for every frame.</strong></p>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <span>// every dimmed frame is a paid re-read</span>
+        <span>STATELENS_DECK_v2</span>
+      </div>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        The waste is not vision itself — it's using full vision as the default observation mechanism for every frame.
+      </div>
+    </section>
+
+    <!-- ============== SLIDE 3: INSIGHT ============== -->
+    <section class="slide" data-slide="3">
+      <div class="slide-chrome">
+        <span class="brand">INSIGHT</span>
+        <span class="num">03 / 13</span>
+      </div>
+      <h2 class="subtitle">The Insight</h2>
+      <h1>Most UI state changes can be compressed before vision.</h1>
+
+      <div class="grid-2 mt-lg stretch">
+        <div class="card cyan">
+          <h3>Ask a cheaper question first</h3>
+          <pre class="compact"><code>Did anything meaningful change?
+  If yes, where?
+    If text changed, what text?
+      Only if local signals are
+      insufficient → call a small VLM.</code></pre>
+          <p class="small mt-sm">We are moving observation <strong>from pixels to state transitions.</strong></p>
+        </div>
+        <div class="card">
+          <h3>The agent receives a structured observation</h3>
+          <pre class="compact"><code>{
+  "changed": true,
+  "keyframe": true,
+  "event_type": "error_appeared",
+  "event_summary":
+    "Text appeared: \"Invalid password\"",
+  "text_diff": {
+    "added": ["Invalid password"], "removed": []
+  },
+  "vlm_called": false
+}</code></pre>
+        </div>
+      </div>
+
+      <div class="card mt">
+        <p><strong>Before:</strong> <span class="accent-red">huge screenshot</span> · ≈3,000 input tokens · base64 image · paid every turn</p>
+        <p class="mt-sm"><strong>After:</strong> <span class="accent-green">small JSON event card</span> · ≈50 input tokens · plain text · cached cleanly</p>
+      </div>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        Moving observation from pixels to state transitions.
+      </div>
+    </section>
+
+    <!-- ============== SLIDE 4: PIPELINE ============== -->
+    <section class="slide" data-slide="4">
+      <div class="slide-chrome">
+        <span class="brand">ARCHITECTURE</span>
+        <span class="num">04 / 13</span>
+      </div>
+      <h2 class="subtitle">What We Built</h2>
+      <h1>A six-stage screenshot compression pipeline.</h1>
+
+      <div class="pipeline mt">
+        <div class="pipe-stage local"><span class="n">STAGE 1</span><strong>Visual gate</strong><br/>hash + pixelmatch</div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-stage local"><span class="n">STAGE 2</span><strong>Region localize</strong><br/>bounding boxes</div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-stage local"><span class="n">STAGE 3</span><strong>OCR text diff</strong><br/>changed crops</div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-stage local"><span class="n">STAGE 4</span><strong>Importance</strong><br/>keyframe select</div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-stage vlm"><span class="n">STAGE 5</span><strong>Selective VLM</strong><br/>Haiku, downscaled</div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-stage local"><span class="n">STAGE 6</span><strong>Timeline</strong><br/>semantic events</div>
+      </div>
+      <p class="tiny" style="text-align:center;">
+        <span class="badge green">LOCAL</span> no model call &nbsp;·&nbsp; <span class="badge amber">VLM</span> optional small-model call
+      </p>
+
+      <div class="grid-2 mt">
+        <div class="card">
+          <h3 class="accent-green">Shipped — pipeline core</h3>
+          <ul>
+            <li>hash + pixelmatch visual gate for redundant frames</li>
+            <li>changed-region bounding boxes with semantic labels</li>
+            <li>OCR only on changed crops, not whole screenshots</li>
+            <li>rule-based importance scoring for keyframes</li>
+            <li>selective VLM explanation for visual-only states</li>
+            <li>cumulative Haiku usage tracked honestly</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 class="accent-green">Shipped — production hardening</h3>
+          <ul>
+            <li>per-session semantic timeline</li>
+            <li><strong>action-failure detection</strong> — expected-change actions that don't move the UI emit <code>action_failed</code></li>
+            <li><strong>multi-language OCR</strong> via <code>STATELENS_OCR_LANGS</code></li>
+            <li><strong>Anthropic-compatible HTTP proxy</strong> — intercepts <code>POST /v1/messages</code>, runs the pipeline, rewrites the request</li>
+          </ul>
+        </div>
+      </div>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        Pipeline is model-external. It works as a library, MCP, in custom agent loops, and as a transparent proxy that any Anthropic SDK can point at.
+      </div>
+    </section>
+
+    <!-- ============== SLIDE 5: PRODUCT SURFACE ============== -->
+    <section class="slide" data-slide="5">
+      <div class="slide-chrome">
+        <span class="brand">PRODUCT SURFACE</span>
+        <span class="num">05 / 13</span>
+      </div>
+      <h2 class="subtitle">Product Surface</h2>
+      <h1>One pipeline. Four delivery surfaces. Led by a drop-in proxy.</h1>
+
+      <div class="card cyan mt">
+        <h3 style="color:var(--cyan);">Primary surface — Anthropic-compatible HTTP proxy</h3>
+        <pre class="compact mt-sm"><code><span style="color:var(--muted);"># Boot it</span>
+statelens proxy --port 18443
+
+<span style="color:var(--muted);"># Point any Anthropic SDK at it</span>
+export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
+<span style="color:var(--muted);"># …that's it. No code changes. No tool calls. No prompts.</span></code></pre>
+        <p class="small mt-sm">
+          Proxy detects image blocks in <code>POST /v1/messages</code>, runs the pipeline on the latest screenshot, rewrites it to a compact text observation (or "no meaningful change" stub when the gate skips), and forwards upstream. Recursion guard via <code>STATELENS_INTERNAL_ANTHROPIC_BASE_URL</code> keeps internal Haiku calls from looping back.
+        </p>
+      </div>
+
+      <table class="compact mt">
+        <thead>
+          <tr><th style="width: 250px;">Surface</th><th>Use when</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>HTTP proxy</strong> &nbsp;<span class="badge green">PRIMARY</span></td><td>Any agent that talks to the Anthropic API — zero code change</td></tr>
+          <tr><td><strong>MCP server</strong> (4 tools)</td><td>Editor clients where the proxy can't reach: Cursor, Claude Code, Claude Desktop</td></tr>
+          <tr><td><code>routeObservation()</code> library</td><td>Custom agents that want code-enforced routing</td></tr>
+          <tr><td><code>captureAndRoute()</code> adapter</td><td>Playwright loops that capture screenshots in-process</td></tr>
+        </tbody>
+      </table>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        Lead with the proxy. Reproduces harness savings directly. MCP is the editor-compatibility adapter for environments the proxy can't reach.
+      </div>
+    </section>
+
+    <!-- ============== SLIDE 6: REAL NUMBERS ============== -->
+    <section class="slide" data-slide="6">
+      <div class="slide-chrome">
+        <span class="brand">REAL NUMBERS</span>
+        <span class="num">06 / 13</span>
+      </div>
+      <h2 class="subtitle">Real Numbers</h2>
+      <h1>81–90% cost reduction. 78–100% accuracy. Two adversarial scenarios.</h1>
+      <p class="small">Real Anthropic API token counts. Sonnet 4.6 outside, Haiku 4.5 inside. Baseline = raw screenshots through Sonnet with prev+curr prompt per frame.</p>
+
+      <div class="grid-4 mt">
+        <div class="card cyan stat">
+          <div class="num huge" style="color:var(--cyan);">90.1%</div>
+          <div class="lbl">Login cost reduction</div>
+        </div>
+        <div class="card cyan stat">
+          <div class="num huge" style="color:var(--cyan);">81.2%</div>
+          <div class="lbl">Checkout cost reduction</div>
+        </div>
+        <div class="card green stat">
+          <div class="num huge accent-green">100%</div>
+          <div class="lbl">Login lenient accuracy</div>
+        </div>
+        <div class="card green stat">
+          <div class="num huge accent-green">77.8%</div>
+          <div class="lbl">Checkout lenient accuracy</div>
+        </div>
+      </div>
+
+      <table class="compact mt">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th class="num">Login (12 frames)</th>
+            <th class="num">Checkout (10 frames)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Baseline / StateLens input tokens</td><td class="num">36,255 → 6,562</td><td class="num">29,951 → 9,025</td></tr>
+          <tr><td><strong>Token reduction</strong></td><td class="num"><span class="pos">81.9%</span></td><td class="num"><span class="pos">69.9%</span></td></tr>
+          <tr><td>Baseline / StateLens cost</td><td class="num">$0.1162 → $0.0115</td><td class="num">$0.0988 → $0.0186</td></tr>
+          <tr><td>Sonnet image tokens dropped</td><td class="num"><span class="pos">100% (12→0)</span></td><td class="num"><span class="pos">100% (10→0)</span></td></tr>
+          <tr><td>Visual-gate filters · Sonnet text · Haiku VLM</td><td class="num">5 · 2 · 5</td><td class="num">0 · 4 · 6</td></tr>
+          <tr><td><strong>Accuracy lenient / strict</strong></td><td class="num"><span class="pos">100.0%</span> / 81.8%</td><td class="num"><span class="pos">77.8%</span> / 33.3%</td></tr>
+          <tr><td>Misses (events lost)</td><td class="num"><span class="pos">0</span></td><td class="num">2</td></tr>
+        </tbody>
+      </table>
+
+      <p class="tiny mt-sm">
+        <strong>Why two scenarios — adversarial.</strong> Login has natural redundancy (gate filters 5/12). Checkout has zero redundancy and stylized form fields that break OCR — savings come from routing form changes through cheap Haiku calls. Same pipeline, different mechanisms, both deliver 80%+ token and 81%+ cost reduction.
+      </p>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        Lead with 90% on login, then 100% lenient accuracy before they ask "but does it work?" The two-scenario contrast heads off "is this just an easy flow?" — checkout was harder and still saved 81%.
+      </div>
+    </section>
+
+    <!-- ============== SLIDE 7: PROXY VALIDATION ============== -->
+    <section class="slide" data-slide="7">
+      <div class="slide-chrome">
+        <span class="brand">PROXY VALIDATION</span>
+        <span class="num">07 / 13</span>
+      </div>
+      <h2 class="subtitle">Real Numbers — proxy form ships</h2>
+      <h1>The harness number reproduces end-to-end through a real request path.</h1>
+
+      <p class="small mt-sm">
+        Numbers on the prior slide are a controlled SDK loop. To prove the pipeline survives a real network path, we re-ran login through the production proxy:
+        <code>SDK → http://127.0.0.1:18443 → pipeline → upstream Anthropic</code> · no harness shortcuts.
+      </p>
+
+      <table class="compact mt">
+        <thead>
+          <tr>
+            <th>Mode</th>
+            <th class="num">Run A (direct)</th>
+            <th class="num">Run B (proxy)</th>
+            <th class="num">Δ cost</th>
+            <th class="num">Accuracy (lenient)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>prev+curr per turn</strong> <span class="tiny" style="color:var(--dim);">· eval parity</span></td>
+            <td class="num">$0.1160</td>
+            <td class="num">$0.0796</td>
+            <td class="num"><span class="pos">−31.3%</span></td>
+            <td class="num"><span class="pos">100.0%</span> (0 misses)</td>
+          </tr>
+          <tr>
+            <td><strong>single-image per turn</strong> <span class="tiny" style="color:var(--dim);">· how real agent loops call</span></td>
+            <td class="num">$0.0670</td>
+            <td class="num">$0.0272</td>
+            <td class="num"><span class="pos">−59.4%</span></td>
+            <td class="num" style="color:var(--dim);">uncompared¹</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="barchart mt">
+        <div class="barrow">
+          <span class="lbl">Direct (prev+curr)</span>
+          <div class="bar"><div class="fill red" style="width: 100%;"></div></div>
+          <span class="val">$0.1160</span>
+        </div>
+        <div class="barrow">
+          <span class="lbl">Proxy (prev+curr)</span>
+          <div class="bar"><div class="fill green" style="width: 68.7%;"></div></div>
+          <span class="val pos">$0.0796 · −31%</span>
+        </div>
+        <div class="barrow">
+          <span class="lbl">Direct (single-image)</span>
+          <div class="bar"><div class="fill red" style="width: 57.8%;"></div></div>
+          <span class="val">$0.0670</span>
+        </div>
+        <div class="barrow">
+          <span class="lbl">Proxy (single-image)</span>
+          <div class="bar"><div class="fill green" style="width: 23.4%;"></div></div>
+          <span class="val pos">$0.0272 · −59%</span>
+        </div>
+      </div>
+
+      <p class="tiny mt-sm">
+        ¹ Single-image accuracy can't be fairly judged — Run A has no prior context, so the judge marks every "no change" frame as disagreement. Token/cost numbers are unaffected. Files: <code>eval/results/proxy_ab_login_baseline.{json,accuracy.json}</code>.
+      </p>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        Same pipeline, shipped as a transparent proxy, hits −31% on the same flow with zero misses — and −59% in the single-image-per-turn shape real agent loops use.
+      </div>
+    </section>
+
+    <!-- ============== SLIDE 8: OBSERVABILITY ============== -->
+    <section class="slide" data-slide="8">
+      <div class="slide-chrome">
+        <span class="brand">OBSERVABILITY</span>
+        <span class="num">08 / 13</span>
+      </div>
+      <h2 class="subtitle">Why It Matters Beyond Cost</h2>
+      <h1>StateLens makes agent runs debuggable.</h1>
+
+      <div class="split mt">
+        <div class="stretch">
+          <p class="small">Raw screenshots disappear into model context. <strong>StateLens leaves a timeline.</strong></p>
+
+          <div class="rail">
+            <div class="rail-events">
+              <div class="rail-event"><div class="dot"></div><div class="lbl">session<br/>start</div></div>
+              <div class="rail-event skip"><div class="dot"></div><div class="lbl">skipped</div></div>
+              <div class="rail-event"><div class="dot"></div><div class="lbl">text<br/>"Welcome"</div></div>
+              <div class="rail-event skip"><div class="dot"></div><div class="lbl">skipped</div></div>
+              <div class="rail-event fail"><div class="dot"></div><div class="lbl">action<br/>failed</div></div>
+              <div class="rail-event"><div class="dot"></div><div class="lbl">error<br/>"Invalid"</div></div>
+              <div class="rail-event skip"><div class="dot"></div><div class="lbl">skipped</div></div>
+            </div>
+          </div>
+
+          <div class="card mt-sm">
+            <h3>This helps developers answer</h3>
+            <ul>
+              <li>what changed?</li>
+              <li>when did it change?</li>
+              <li><strong>did an action do nothing?</strong></li>
+              <li>which frames actually needed vision?</li>
+              <li>where did the agent waste work?</li>
+            </ul>
+          </div>
+        </div>
+        <div class="stretch">
+          <div class="card amber stretch">
+            <h3 class="accent-amber"><code>action_failed</code> is a first-class event</h3>
+            <p class="small">
+              When the agent passes an <code>actionLabel</code> it expected to mutate the UI and the screen does not change, StateLens emits:
+            </p>
+            <pre class="compact mt-sm"><code>{
+  "changed": false,
+  "keyframe": true,
+  "event_type": "action_failed",
+  "event_summary":
+    "Action \"click_submit\" produced no
+     meaningful UI change; the action may
+     have failed or the page may be stuck",
+  "vlm_called": false
+}</code></pre>
+            <p class="small mt-sm">
+              No OCR, no VLM, no false-positive <code>no_change</code> hiding a stuck page.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        The same compression that saves money becomes observability for agent debugging.
+      </div>
+    </section>
+
+    <!-- ============== SLIDE 9: INTEGRATION TIERS ============== -->
+    <section class="slide" data-slide="9">
+      <div class="slide-chrome">
+        <span class="brand">INTEGRATION</span>
+        <span class="num">09 / 13</span>
+      </div>
+      <h2 class="subtitle">Real-Time Agent Integration</h2>
+      <h1>The proxy beats middleware beats a prompt.</h1>
+
+      <div class="mt">
+
+        <div class="tier">
+          <div class="tier-rank"><div class="n">1</div><div>weakest</div></div>
+          <div class="card" style="flex:1;">
+            <h3 class="accent-red">Policy prompt — voluntary</h3>
+            <p class="small">"Please call statelens_observe before reasoning." The agent has to choose. Easy to forget, easy to ignore.</p>
+          </div>
+        </div>
+
+        <div class="tier">
+          <div class="tier-rank"><div class="n">2</div><div>middle</div></div>
+          <div class="card" style="flex:1;">
+            <h3 class="accent-amber">Middleware — code-enforced, in-process</h3>
+            <pre class="compact"><code>const { observation, route } = await captureAndRoute(page, {
+  sessionId: 'login_flow', actionLabel: 'click_submit',
+});
+if (route.route === 'skip_vision')          { /* zero tokens */ }
+if (route.route === 'use_text_observation') await model({ text: route.context });
+if (route.route === 'use_full_vision')      await model({ image: screenshot });</code></pre>
+          </div>
+        </div>
+
+        <div class="tier">
+          <div class="tier-rank" style="background: linear-gradient(180deg, var(--cyan-dim), var(--surface-2));"><div class="n" style="color:white;">3</div><div style="color:white;">strongest</div></div>
+          <div class="card cyan" style="flex:1;">
+            <h3 style="color:var(--cyan);">Proxy — data-path, zero code change</h3>
+            <pre class="compact"><code>const client = new Anthropic({
+  baseURL: 'http://127.0.0.1:18443',  <span style="color:var(--cyan);">// ← only line that changes</span>
+});
+<span style="color:var(--muted);">// Your existing agent loop, unchanged.</span>
+await client.messages.create({ model: 'claude-sonnet-4-6', messages: [...] });</code></pre>
+            <p class="small mt-sm">
+              Proxy inspects the latest image block, runs <code>observe()</code>, rewrites the request before it hits Anthropic. Agent never sees JSON observations, no tool defs injected, no cache churn. <strong>The harness's 80% savings translate directly to a real client here.</strong>
+            </p>
+          </div>
+        </div>
+
+      </div>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        Folder demo proves the pipeline. Adapter proves it in real-time loops. Proxy is the shape that asks least of the agent author — and is where cost numbers reproduce in production.
+      </div>
+    </section>
+
+    <!-- ============== SLIDE 10: DELIVERY-SURFACE LESSON ============== -->
+    <section class="slide" data-slide="10">
+      <div class="slide-chrome">
+        <span class="brand">THE LESSON</span>
+        <span class="num">10 / 13</span>
+      </div>
+      <h2 class="subtitle">The Delivery-Surface Lesson</h2>
+      <h1>We shipped MCP, dogfooded it, found it was <span class="accent-red">more expensive</span> — then built the proxy.</h1>
+
+      <p class="small mt-sm">
+        The pipeline savings are real. But the <strong>delivery surface matters as much as the pipeline.</strong> We learned this by measuring our own MCP server end-to-end inside Claude Code.
+      </p>
+
+      <div class="grid-2 mt">
+        <div class="card red">
+          <h3 class="accent-red">Dogfood: MCP on a short Opus session</h3>
+          <p class="tiny mb-sm">Two Claude Code sessions, identical 12-frame login prompt, identical model. Run A used <code>Read</code>, Run B swapped to <code>statelens_observe</code>.</p>
+          <table class="compact">
+            <thead><tr><th>Metric</th><th class="num">Read</th><th class="num">MCP</th></tr></thead>
+            <tbody>
+              <tr><td>Total cost</td><td class="num">$0.66</td><td class="num"><span class="neg">$0.84</span></td></tr>
+              <tr><td>Output tokens</td><td class="num">2.1k</td><td class="num">3.5k</td></tr>
+              <tr><td>Cache write</td><td class="num">45.3k</td><td class="num">65.5k</td></tr>
+              <tr><td>Cache read</td><td class="num">657.8k</td><td class="num">685.1k</td></tr>
+            </tbody>
+          </table>
+          <p style="margin-top:6px; font-weight:700; color:var(--red); font-size:14px; text-align:center;">+27% MORE EXPENSIVE</p>
+        </div>
+
+        <div class="card">
+          <h3>Diagnosis — three overheads, all MCP, none pipeline</h3>
+          <ul>
+            <li><strong>Tool-call arg verbosity</strong> — <code>screenshot_path, session_id</code> &gt; <code>file_path</code></li>
+            <li><strong>MCP tool defs cached every turn</strong> — 4 tools × ~400 tokens × 14 turns = ~22k extra cache reads</li>
+            <li><strong>JSON responses churn cache</strong> — each observation is textually unique, forces writes</li>
+          </ul>
+          <p class="tiny mt-sm">Modeled breakeven on Opus: ~30–50 frames. Below that, MCP overhead dominates per-frame savings.</p>
+        </div>
+      </div>
+
+      <div class="card cyan mt">
+        <h3 style="color:var(--cyan);">The fix — proxy form, same pipeline, different surface</h3>
+        <table class="compact mt-sm">
+          <thead><tr><th>Surface</th><th class="num">12-frame login result</th></tr></thead>
+          <tbody>
+            <tr><td>MCP, short Opus session</td><td class="num"><span class="neg">+27% more expensive</span></td></tr>
+            <tr><td>Proxy, prev+curr per turn</td><td class="num"><span class="pos">−31.3%</span> · 100% lenient · 0 misses</td></tr>
+            <tr><td>Proxy, single-image per turn</td><td class="num"><span class="pos">−59.4% cheaper</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        The honest story to remember. We shipped, measured, found the bad result, diagnosed (surface, not pipeline), and shipped the right surface. The reversal — same flow, same pipeline, +27% → −59% — is the most credible thing in the deck.
+      </div>
+    </section>
+
+    <!-- ============== SLIDE 11: NEXT WEDGE ============== -->
+    <section class="slide" data-slide="11">
+      <div class="slide-chrome">
+        <span class="brand">ROADMAP</span>
+        <span class="num">11 / 13</span>
+      </div>
+      <h2 class="subtitle">Next Wedge</h2>
+      <h1>StateLens for self-healing test agents.</h1>
+      <p class="small">Not implemented yet — but the clearest product expansion.</p>
+
+      <div class="grid-2 mt">
+        <div class="card">
+          <h3>Agentic testing loops repeatedly inspect, retry, and repair UI flows</h3>
+          <pre class="compact mt-sm"><code>test agent explores website
+  → generates or runs Playwright tests
+  → test fails
+  → healer replays the failing flow
+  → <span style="color:var(--cyan);">StateLens compresses repeated observations</span>
+  → agent receives compact failure context</code></pre>
+
+          <h3 class="mt">Planned integration</h3>
+          <ul>
+            <li>Playwright Test fixture: <code>lens.step("submit form", action)</code></li>
+            <li>StateLens timeline attached to test reports</li>
+            <li>compact healer context for failures</li>
+            <li>screenshots forwarded only when route is <code>use_full_vision</code></li>
+            <li>Stagehand adapter as a second target</li>
+          </ul>
+        </div>
+        <div class="card amber">
+          <h3 class="accent-amber">The healer signal we already ship</h3>
+          <p class="small">
+            The <code>action_failed</code> event is the first healer signal shipped: when the test agent clicks submit and the screen does not move, the timeline records <em>the action that did nothing</em> — not just a quiet <code>no_change</code> gap.
+          </p>
+
+          <h3 class="mt">Positioning</h3>
+          <p class="small">
+            Playwright snapshots already handle DOM-heavy tests efficiently. StateLens focuses on <strong>screenshot-heavy fallback</strong> — visual UI, canvas, charts, custom widgets, and healer loops.
+          </p>
+        </div>
+      </div>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        Pitch as roadmap, not current implementation. The core pipeline and routing primitives make it a natural next step.
+      </div>
+    </section>
+
+    <!-- ============== SLIDE 12: WHY WE WIN ============== -->
+    <section class="slide" data-slide="12">
+      <div class="slide-chrome">
+        <span class="brand">WHY WE WIN</span>
+        <span class="num">12 / 13</span>
+      </div>
+      <h2 class="subtitle">Why StateLens Wins</h2>
+      <h1>Model-external. Inspectable. Drop-in.</h1>
+
+      <div class="split mt">
+        <div class="stretch">
+          <table class="compact">
+            <thead><tr><th>Approach</th><th>Tradeoff</th></tr></thead>
+            <tbody>
+              <tr><td>Model-internal token pruning</td><td>powerful, but model-specific and invisible</td></tr>
+              <tr><td>Raw Playwright snapshots</td><td>great for DOM, less helpful for pixel-heavy states</td></tr>
+              <tr><td>Full screenshot reasoning</td><td>general, but expensive and hard to debug</td></tr>
+              <tr><td><strong>StateLens</strong></td><td><strong>model-agnostic, inspectable, drop-in proxy</strong></td></tr>
+            </tbody>
+          </table>
+
+          <div class="card mt">
+            <h3>Moat in practice</h3>
+            <ul>
+              <li>local-first diffing pipeline + structured event timeline</li>
+              <li>honest VLM usage accounting (Haiku counted against us)</li>
+              <li><strong>drop-in proxy</strong> — one <code>baseURL</code>, no per-turn MCP tax</li>
+              <li>MCP adapter for editor environments the proxy can't reach</li>
+              <li>in-process route API for custom agents</li>
+              <li><strong>measured, reversed engineering finding</strong> (MCP +27% → proxy −31% to −59%)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="stretch">
+          <div class="quad">
+            <div>
+              <div class="label">opaque · model-specific</div>
+              <div style="color:var(--muted);">Model-internal<br/>token pruning</div>
+              <div class="label" style="opacity:0;">.</div>
+            </div>
+            <div>
+              <div class="label">opaque · model-agnostic</div>
+              <div style="color:var(--muted);">Full screenshot<br/>reasoning</div>
+              <div class="label" style="opacity:0;">.</div>
+            </div>
+            <div>
+              <div class="label">inspectable · model-specific</div>
+              <div style="color:var(--muted);">VLM-specific<br/>compression research</div>
+              <div class="label" style="opacity:0;">.</div>
+            </div>
+            <div style="background: linear-gradient(135deg, rgba(34,211,238,0.1), var(--surface));">
+              <div class="label">inspectable · model-agnostic</div>
+              <div style="color:var(--cyan); font-weight:700; font-size:15px;">StateLens <span class="star">★</span></div>
+              <div class="label" style="color:var(--cyan);">proxy · MCP · library · adapter</div>
+            </div>
+          </div>
+
+          <div class="card cyan mt" style="text-align:center;">
+            <p style="font-size:17px; font-weight:600;">The universal observation layer for UI agents.</p>
+            <p class="small mt-sm">Adopting it is one environment variable.</p>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        Don't make every model relearn the same unchanged screen. Put an observation layer in front of them — on the data path, not in the tool surface — so it costs nothing to adopt and nothing per turn.
+      </div>
+    </section>
+
+    <!-- ============== APPENDIX ============== -->
+    <section class="slide" data-slide="13">
+      <div class="slide-chrome">
+        <span class="brand">APPENDIX</span>
+        <span class="num">13 / 13</span>
+      </div>
+      <h2 class="subtitle">Optional Appendix</h2>
+      <h1>Feature inventory.</h1>
+
+      <div class="feat-cols three mt">
+        <div class="col">
+          <h3>Shipped now</h3>
+          <ul>
+            <li>Stage 1 visual gate (hash + pixelmatch)</li>
+            <li>Stage 2 spatial diff localization</li>
+            <li>Stage 3 OCR text diff on changed crops</li>
+            <li>Stage 4 importance scorer + OCR-reliability</li>
+            <li>Stage 5 selective VLM (Haiku, 768px)</li>
+            <li>Stage 6 timeline assembly</li>
+            <li>VLM cumulative usage tracking</li>
+            <li>reliability fallbacks</li>
+            <li><strong>Anthropic-compatible HTTP proxy</strong> — image rewrite, streaming pass-through, recursion guard</li>
+            <li>MCP server with 4 tools</li>
+            <li>path and base64 screenshot input</li>
+            <li>A/B token measurement harness</li>
+            <li>Haiku-judged accuracy harness</li>
+            <li>locked baselines: login (12) + checkout (10)</li>
+            <li>proxy-form baseline JSON committed</li>
+            <li><code>routeObservation()</code> route helper</li>
+            <li><code>captureAndRoute()</code> Playwright adapter</li>
+            <li>live Playwright demo</li>
+            <li><code>action_failed</code> event via <code>actionLabel</code></li>
+            <li>multi-lang OCR via <code>STATELENS_OCR_LANGS</code></li>
+            <li><code>RESULTS.md</code> + <code>PROXY_IMPLEMENTATION.md</code></li>
+          </ul>
+        </div>
+        <div class="col">
+          <h3 class="amber">Pitch as roadmap</h3>
+          <ul>
+            <li>Playwright Test fixture</li>
+            <li>healer-loop failure context</li>
+            <li>test report artifacts</li>
+            <li>Stagehand adapter</li>
+            <li>agentic testing cost dashboard</li>
+            <li>hosted/cloud proxy endpoint</li>
+            <li>OpenAI / Gemini proxy surfaces</li>
+          </ul>
+        </div>
+        <div class="col">
+          <h3 class="red">Do not claim yet</h3>
+          <ul>
+            <li>hosted multi-tenant proxy</li>
+            <li>savings on DOM-only Playwright tests</li>
+            <li>completed Playwright Test integration</li>
+            <li>completed Stagehand integration</li>
+            <li>production browser extension</li>
+            <li>non-Anthropic proxy support</li>
+          </ul>
+        </div>
+      </div>
+      <div class="note">
+        <div class="label">Speaker note</div>
+        Reference slide. Use to handle "what is / isn't shipped" Q&amp;A.
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<div class="hud">
+  <button id="prev" title="Previous (←)">‹</button>
+  <span class="counter" id="counter">01 / 13</span>
+  <button id="next" title="Next (→)">›</button>
+  <button id="notes" title="Toggle notes (N)">N</button>
+  <button id="full" title="Fullscreen (F)">⛶</button>
+</div>
+
+<script>
+  (function () {
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const total = slides.length;
+    const counterEl = document.getElementById('counter');
+    const stage = document.getElementById('stage');
+    let idx = 0;
+
+    function fmt(n) { return String(n).padStart(2, '0'); }
+    function show(i) {
+      idx = Math.max(0, Math.min(total - 1, i));
+      slides.forEach((s, k) => s.classList.toggle('active', k === idx));
+      counterEl.textContent = `${fmt(idx + 1)} / ${fmt(total)}`;
+      try {
+        history.replaceState(null, '', `#${idx + 1}`);
+      } catch (e) {}
+    }
+
+    function next() { show(idx + 1); }
+    function prev() { show(idx - 1); }
+
+    document.getElementById('next').addEventListener('click', next);
+    document.getElementById('prev').addEventListener('click', prev);
+    document.getElementById('notes').addEventListener('click', () => document.body.classList.toggle('notes'));
+    document.getElementById('full').addEventListener('click', () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'PageDown':
+        case ' ':
+          e.preventDefault(); next(); break;
+        case 'ArrowLeft':
+        case 'PageUp':
+          e.preventDefault(); prev(); break;
+        case 'Home':
+          e.preventDefault(); show(0); break;
+        case 'End':
+          e.preventDefault(); show(total - 1); break;
+        case 'n':
+        case 'N':
+          document.body.classList.toggle('notes'); break;
+        case 'f':
+        case 'F':
+          if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+          else document.exitFullscreen();
+          break;
+      }
+    });
+
+    // Scale stage to fit viewport
+    function fit() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const sw = 1280, sh = 720;
+      const padding = 40;
+      const scale = Math.min((w - padding) / sw, (h - padding) / sh);
+      stage.style.transform = `scale(${scale})`;
+    }
+    window.addEventListener('resize', fit);
+    fit();
+
+    // Start from hash if present
+    const hash = parseInt(location.hash.replace('#', ''), 10);
+    show(Number.isFinite(hash) && hash > 0 ? hash - 1 : 0);
+  })();
+</script>
+
+</body>
+</html>
