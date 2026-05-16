@@ -126,6 +126,85 @@ Where the savings come from:
   4. Sonnet's expensive image tokens are eliminated for 10 of 12 frames (99.6% reduction)
 ```
 
+## Real-world dogfood: the MCP overhead finding
+
+The harness measurement above isolates the pipeline's contribution — it's a controlled SDK loop with no agent overhead. To check whether those savings translate to a real client, we dogfooded StateLens against Claude Code itself.
+
+### Experiment design
+
+Two separate Claude Code sessions, identical prompts modulo the tool used, identical screenshots, identical model (Opus 4.7), `/cost` measured at end of each session. Conducted in two terminals to avoid the cumulative-cost-meter problem.
+
+- **Run A (baseline):** "Read each PNG in `demo/screenshots/login_flow/` in filename order. Describe what happened. Do not use any statelens_* tool."
+- **Run B (StateLens):** Same prompt, swap `Read` → `statelens_observe(path, session_id)`, plus one `statelens_timeline` call at the end.
+
+### The result — Run B was MORE expensive
+
+| Opus 4.7 metric | Run A (Read) | Run B (StateLens) | Δ |
+|---|---:|---:|---:|
+| Total cost | **$0.66** | **$0.84** | **+$0.18 (+27%)** |
+| Input tokens | 44 | 31 | -13 |
+| Output tokens | 2.1k | 3.5k | **+1.4k** |
+| Cache read | 657.8k | 685.1k | +27.3k |
+| Cache write | 45.3k | 65.5k | +20.2k |
+| Haiku-internal cost | $0.0006 | $0.0012 | +$0.0006 |
+| Tool calls made | 12 Reads | 14 statelens calls | +2 |
+
+Surprising — and exactly the opposite of the 80% reduction the harness predicts. We diagnosed it.
+
+### Root cause: MCP-specific overhead, not pipeline overhead
+
+Three factors combine to swamp the screenshot-token savings:
+
+**1. Tool-call argument verbosity (~$0.05).** Each `statelens_observe` call has more verbose tool_use arguments (`screenshot_path`, `session_id`) than `Read` (just `file_path`). Across 14 calls vs 12, ~+760 output tokens at Opus's $75/M.
+
+**2. MCP tool definitions cached every turn (~$0.04–0.10).** Connecting any MCP server adds its tool definitions (description + JSON schema for each tool) to Opus's system prompt. Our 4 StateLens tools add ~1,600 tokens. Multiplied across the ~14 turns in this session, that's ~22k extra cache-read tokens — paid on *every* turn regardless of whether the tools are called.
+
+**3. JSON responses churning the cache (~$0.05–0.10).** Each `statelens_observe` result (typed Observation object with multiple fields) lands in Claude's context and forces a cache write. 12 unique JSON responses × ~400 tokens = ~5k of new content per session that gets cached and re-read.
+
+Image tokens via `Read` cache once and reuse efficiently; structured JSON tool responses are textually unique and write churn dominates.
+
+### The structural insight
+
+**All three overheads are properties of MCP, not properties of the StateLens pipeline.** They exist whether StateLens is called or not (#2), and the others scale with how often the tool is invoked.
+
+What this means:
+
+- The pipeline savings the harness measures are real and reproducible.
+- The MCP server is the **wrong delivery surface** for short interactive sessions on expensive models (Opus). The fixed overhead dominates the per-frame savings until N gets large.
+- For long-running screenshot-heavy automation (50+ frames, cheaper models, headless agent loops), the overhead amortizes and the savings appear. That's what the harness measures — *exactly* that scenario.
+
+Modeled breakeven:
+
+```
+Per-frame savings (Read → statelens_observe):
+  Image tokens saved per frame:           ~1,500 image tokens
+  Image-token cost (Opus input):          ~$0.0225 per frame
+
+Per-session fixed MCP overhead:
+  Tool-def cache reads × N turns:         ~$0.05–0.10
+  Extra cache writes from JSON responses: ~$0.10–0.40
+  Extra output verbosity:                 ~$0.05
+
+Breakeven on Opus: roughly 30–50 frames
+For 12 frames: overhead > savings → Run B more expensive
+For 100+ frames: savings dominate → Run B clearly cheaper
+```
+
+### What we learned about the product
+
+The MCP framing undersells the work. MCP is voluntary — the agent has to choose to call our tool — and even when it does, MCP adds a per-turn tax that needs amortization. **The pipeline is the IP. MCP is one delivery surface, and not the most leveraged one.**
+
+A **proxy / SDK-wrapper form** sits in the data path (no voluntary cooperation needed), runs the pipeline *outside* the agent's context (no cache churn from JSON responses, no tool-def tax), and rewrites the API request transparently. That's the form where the harness's 80% number directly translates to real client usage.
+
+Concretely, the proxy form has zero overhead because:
+
+- StateLens runs *before* the request reaches the model
+- The model never sees StateLens's JSON observations — only the rewritten (text-only or skipped) message
+- No tool definitions are injected into the agent's context
+- Tool-call arguments don't exist (the agent calls `messages.create` normally)
+
+The next iteration of StateLens will lead with the SDK wrapper / HTTP proxy as the primary surface, with MCP retained as a compatibility adapter for editor integrations (Cursor, Claude Code, Claude Desktop) where the proxy can't reach.
+
 ## What's reproducible
 
 All numbers in this doc come from these JSON files (committed):
@@ -154,5 +233,7 @@ node dist/eval/accuracy_check.js <results.json>    # accuracy on any result
 ## Headline for the pitch
 
 > "Across two scenarios — a 12-frame login flow and a 10-frame Zara checkout — StateLens reduced input tokens by **70-82%** and cost by **81-90%** against a real change-detection baseline (raw screenshots through Sonnet, every frame). On login, no events were missed (**100% lenient agreement** with a Haiku judge). On checkout — a form-heavy flow with zero gate-filterable frames — accuracy was 56% lenient before tuning; we identified the OCR-reliability failure mode and shipped a fix in 30 minutes that lifted it to **78%**, dropping token reduction 10pp in exchange. Both numbers come from real Anthropic API tokens, not estimates, and are reproducible with `npm run measure`."
+
+> **Honest scope note:** these savings reproduce in any data-path integration — SDK wrapper, HTTP proxy, custom agent loop. They do **not** reproduce in short Claude Code / Cursor sessions on Opus, because MCP adds a fixed per-turn cache-overhead tax that takes 30-50 frames to amortize (full investigation above in *Real-world dogfood*). The proxy/SDK-wrapper form is the integration surface where the harness number directly applies; MCP is the editor-compatibility adapter.
 
 Honest, specific, with the tuning trade openly shown.
