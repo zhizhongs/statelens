@@ -1,6 +1,6 @@
 {
   "name": "statelens-sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Drop-in screenshot gateway for UI agents. Filters redundant frames, extracts semantic state changes, and cuts vision-token spend. Ships as an MCP server, an in-process routing library, and a local Anthropic-compatible proxy. Measured 70-82% input-token and 81-90% cost reduction on real Anthropic API calls.",
   "type": "module",
   "bin": {

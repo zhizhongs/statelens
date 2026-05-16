@@ -1,7 +1,13 @@
 import 'dotenv/config';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { observe, getTimeline, resetSession } from '../pipeline/index.js';
+import {
+  observe,
+  getTimeline,
+  resetSession,
+  getVlmCumulativeUsage,
+  resetVlmCumulativeUsage,
+} from '../pipeline/index.js';
 import { routeObservation } from '../adapters/routeObservation.js';
 import {
   extractLatestAnthropicImageBlock,
@@ -244,6 +250,21 @@ export function createAnthropicProxyServer(options: ProxyOptions) {
 
       if (req.method === 'GET' && url.pathname === '/health') {
         jsonResponse(res, 200, { ok: true, name: 'statelens-proxy', provider: 'anthropic' });
+        return;
+      }
+
+      // Cumulative tokens the proxy spent on the caller's API key for internal
+      // VLM (Haiku) analysis. Lets consumers compute their true cost — Anthropic
+      // bills these as if the agent made them, so any honest savings number
+      // must include them.
+      if (req.method === 'GET' && url.pathname === '/usage') {
+        jsonResponse(res, 200, { vlm: getVlmCumulativeUsage() });
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/usage/reset') {
+        resetVlmCumulativeUsage();
+        jsonResponse(res, 200, { ok: true });
         return;
       }
 

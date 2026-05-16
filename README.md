@@ -177,6 +177,10 @@ Same code on both sides — the only difference between Run A and Run B is the `
 
 The proxy form preserves the same observation quality as the in-process pipeline (visual-gate filters count as match-by-construction, same as the in-process eval). The single-image-per-turn pattern produces larger savings because there's no prior image dragging tokens along — that's the realistic pattern for most agent loops.
 
+**Why is the proxy lower than the in-process pipeline?** The in-process adapter (81.9% / 90.1% on the same flow) can skip the model call entirely on no-change turns — the agent's own loop handles the skip. The proxy can't safely do that: it doesn't know whether the agent expects text, a `tool_use` block, or a structured JSON action, and getting the synthesized response wrong would break computer-use and most production agent loops. Use the proxy when you can't modify agent code; use the in-process adapter when you can.
+
+A future `--synthesize-on-skip` proxy flag, scoped to agents with known output shapes (e.g., text-output change-detection prompts), could close more of the gap. It's intentionally **not** shipped in v0.1 — the proxy's current contract is "transparent rewrite, never synthesize," and that's the safer default.
+
 For context: an MCP-based dogfood on a short Claude Code session was **+27% more expensive** than baseline because MCP tool definitions, tool-call args, and JSON cache churn dominated a 5-frame session. The proxy form has zero per-turn tax. Full investigation in [`RESULTS.md`](./RESULTS.md).
 
 See [`RESULTS.md`](./RESULTS.md) for the full methodology, evolution, and per-frame verdicts; [`docs/DEMO_AND_EVAL.md`](./docs/DEMO_AND_EVAL.md) for demo and reproduction commands.
