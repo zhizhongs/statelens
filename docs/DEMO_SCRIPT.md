@@ -10,11 +10,11 @@ Show the table from `eval/results/phase3_baseline.json`. Lead with the cost redu
 Task: 12-frame login flow analysis  •  Model: claude-sonnet-4-6
 ─────────────────────────────────────────────────────────────────
 Baseline (raw images)           StateLens compression
-  12 API calls                    3 Sonnet text + 4 Haiku vision
-  19,008 input tokens             5,353 input tokens
-  $0.0640                         $0.0138
+  12 API calls                    2 Sonnet text + 5 Haiku vision
+  19,008 input tokens             6,562 input tokens
+  $0.0645                         $0.0107
 ─────────────────────────────────────────────────────────────────
-  → 78% cost reduction, 72% input-token reduction
+  → 83% cost reduction, 65% input-token reduction
   → 5 of 12 frames filtered entirely (zero AI calls)
 ```
 

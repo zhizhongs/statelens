@@ -98,26 +98,24 @@ Model: claude-sonnet-4-6 (StateLens internal: claude-haiku-4-5)
 Run A (baseline, raw images):
   API calls:        12
   Input tokens:     19,008
-  Output tokens:    462
-  Wall time:        33.2s
-  Cost:             $0.0640
+  Cost:             $0.0645
 
 Run B (StateLens compression):
-  Sonnet calls:     3   (text-only summaries)
-  Haiku calls:      4   (visual-only keyframes, downscaled to 768px)
+  Sonnet calls:     2   (text-only summaries)
+  Haiku calls:      5   (visual-only keyframes, downscaled to 768px)
   Frames skipped:   5   (filtered by visual gate, zero AI calls)
-  Total input:      5,353 tokens   (71 Sonnet + 5,282 Haiku)
-  Cost:             $0.0138
+  Total input:      6,562 tokens
+  Cost:             $0.0107
 
 Savings:
-  Input tokens:        71.8%
-  Cost:                78.4%
-  Sonnet input tokens: 99.6% (12 image calls → 3 text-only calls)
+  Input tokens:        65.5%
+  Cost:                83.4%
+  Sonnet input tokens: 99.7% (12 image calls → 2 text-only calls)
 ```
 
 Token counts come directly from `response.usage.input_tokens` in the Anthropic API responses. The harness includes honest accounting for Haiku tokens consumed inside StateLens — Run B's reported total includes Haiku, so the savings claim is not a "shift to a cheaper model" trick.
 
-**Reading the numbers:** the visual gate eliminates 42% of frames entirely. Of the remaining keyframes, OCR-driven text diffs let us answer most of them with tiny text-only Sonnet calls (71 input tokens total). The remaining frames where text alone can't explain the change get a Haiku vision call — and those images are downscaled to 768px before encoding (Anthropic prices images by tile count, which scales with resolution). Result: the same task that cost $0.064 in raw API calls costs $0.014 routed through StateLens.
+**Reading the numbers:** the visual gate eliminates 42% of frames entirely. Of the remaining keyframes, OCR-driven text diffs let us answer some of them with tiny text-only Sonnet calls. The rest get a Haiku vision call — and those images are downscaled to 768px before encoding (Anthropic prices images by tile count, which scales with resolution). Result: the same task that cost $0.065 in raw API calls costs $0.011 routed through StateLens.
 
 ## Architecture
 
