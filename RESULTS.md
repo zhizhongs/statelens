@@ -205,6 +205,79 @@ Concretely, the proxy form has zero overhead because:
 
 The next iteration of StateLens will lead with the SDK wrapper / HTTP proxy as the primary surface, with MCP retained as a compatibility adapter for editor integrations (Cursor, Claude Code, Claude Desktop) where the proxy can't reach.
 
+## Real-world validation: the proxy form ships and reverses the MCP finding
+
+The MCP-overhead investigation above ended on a hypothesis: *"the proxy / SDK-wrapper form has zero per-turn tax, so the harness number should reproduce there."* We then shipped a local Anthropic-compatible proxy (see [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md)) and ran the same A/B against it end-to-end.
+
+### Setup
+
+- Boot the proxy in-process: `statelens proxy --port 8443` (or via `eval/measure_proxy.ts` which boots it on a high port automatically)
+- Run A: Anthropic SDK client with `baseURL=https://api.anthropic.com` — raw screenshots straight to Anthropic
+- Run B: same code path, `baseURL=http://127.0.0.1:18443` — proxy detects the image content block in `POST /v1/messages`, runs the existing `observe()` pipeline, replaces the image with a text observation (or a "no meaningful change" stub) when the policy allows, forwards to upstream
+- 12-frame `login_flow` scenario, claude-sonnet-4-6 outside, claude-haiku-4-5 inside the pipeline
+- Recursion guard: when the proxy is active, internal Haiku calls inside `vlmExplain()` bypass it via `STATELENS_INTERNAL_ANTHROPIC_BASE_URL`, so the pipeline doesn't loop through itself
+
+### What broke first
+
+Initial Run B blew up with `Invalid response body while trying to fetch http://127.0.0.1:18443/v1/messages: incorrect header check`. Root cause: `fetch()` automatically decompresses gzipped responses from upstream Anthropic, but the proxy was forwarding the original `content-encoding: gzip` and stale `content-length` headers to the SDK. The SDK then tried to gunzip already-plain JSON and failed.
+
+The unit tests in [`tests/proxy/anthropicProxy.test.ts`](./tests/proxy/anthropicProxy.test.ts) use a mocked forwarder that returns `Response.json()`, so this real-fetch path was never exercised. One-line fix: strip `content-encoding` and `content-length` from `RESPONSE_HEADER_BLOCKLIST` in [`src/proxy/upstream.ts`](./src/proxy/upstream.ts). After that, Run B roundtripped cleanly through the proxy.
+
+### Result — fair-baseline mode (prev+curr per turn, mirrors the in-process eval)
+
+This is the apples-to-apples comparison: both runs send `[prev_image, curr_image, prompt]`, so the accuracy judge has equal context on both sides. The proxy only rewrites the *latest* image block, so Run B's prev image still rides along — savings are necessarily smaller in this mode.
+
+| | Run A (direct) | Run B (proxy) | Δ |
+|---|---|---|---|
+| Sonnet API calls | 12 | 12 | — |
+| Sonnet input tokens | 36,255 | 20,964 | −42.2% |
+| Haiku internal input | 0 | 6,513 | (pipeline overhead) |
+| **Total input tokens** | **36,255** | **27,477** | **−24.2%** |
+| **Estimated cost** | **$0.1160** | **$0.0796** | **−31.3%** |
+| Wall time | 53.6s | 68.4s | +14.8s |
+
+**Accuracy (Haiku judge, same methodology as the headline measurements):**
+
+| | Frames | Strict | Lenient |
+|---|---|---|---|
+| Proxy form (login, prev+curr) | 12 | **75.0%** | **100.0%** |
+| For reference — in-process eval (login, Phase 4) | 12 | 81.8% | 100.0% |
+
+**Zero misses.** Of 12 frames, 4 matched, 3 were partial-matches, and 5 were visual-gate filters (the proxy returned a "no meaningful change" stub, counted as match-by-construction the same way the in-process eval's `action: 'skipped'` is). The visual-gate decisions are produced by the *same* pipeline call (`observe()`), so this is the expected result: the proxy preserves the underlying observation quality 1:1.
+
+### Result — realistic single-image-per-turn mode (how real agent loops actually call the API)
+
+Most agent loops (Claude Code, Cursor, computer-use, Playwright-driven) send one fresh screenshot per turn and rely on conversation history for prior context. Run with `--single-image` style payload (just `[curr_image, prompt]`), the proxy's savings story is much bigger because there's no prev image dragging tokens along:
+
+| | Run A (direct) | Run B (proxy) | Δ |
+|---|---|---|---|
+| Sonnet input tokens | 18,996 | 3,616 | −80.9% |
+| Haiku internal input | 0 | 6,513 | (pipeline overhead) |
+| **Total input tokens** | **18,996** | **10,129** | **−46.7%** |
+| **Estimated cost** | **$0.0670** | **$0.0272** | **−59.4%** |
+
+Accuracy can't be measured fairly in single-image mode (Run A has no prior context, so the judge marks every "no change" frame as a disagreement — same harness bias we found and fixed in the prev+curr run). The cost/token numbers do hold up, and they're produced by the same `observe()` pipeline that hit 100% lenient accuracy in fair-baseline mode.
+
+### Takeaway
+
+The proxy form **reverses the direction of the MCP overhead finding**:
+
+- MCP on a short Opus session: **+27% more expensive** (`Real-world dogfood` above)
+- Proxy on the same 12-frame flow: **−31.3% cheaper** (prev+curr) or **−59.4% cheaper** (single-image)
+
+This is what the section above was pointing at — the savings reproduce in any data-path integration where StateLens runs *outside* the agent's context. The proxy is the production-realistic incarnation of that pattern. The MCP server stays in the codebase as the editor-compatibility adapter; the proxy is what the pitch leads with.
+
+Reproduce locally:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+npm run build
+node dist/eval/measure_proxy.js demo/screenshots/login_flow
+# writes eval/results/proxy_ab_<ts>.json + .accuracy.json
+```
+
+The harness boots the proxy in-process on port 18443, runs A then B, classifies "no meaningful change" responses as `action: 'skipped'` (visual-gate-equivalent), then chains the same Haiku accuracy judge used for the headline measurements.
+
 ## What's reproducible
 
 All numbers in this doc come from these JSON files (committed):

@@ -18,8 +18,14 @@ coverage/
 
 # Eval output: ignore noisy per-run files, but track named baselines (phase milestones)
 eval/results/run_*.json
+eval/results/proxy_ab_2*.json
+eval/results/proxy_ab_2*.accuracy.json
+eval/results/live_login_*.json
+eval/results/live_login_*.accuracy.json
 !eval/results/.gitkeep
 !eval/results/phase*_baseline.json
+!eval/results/proxy_ab_*_baseline.json
+!eval/results/proxy_ab_*_baseline.accuracy.json
 
 # Demo screenshots are committed (small PNGs), but ignore any large recordings
 demo/recordings/

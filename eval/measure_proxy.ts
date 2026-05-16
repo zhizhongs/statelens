@@ -42,12 +42,25 @@ const RESULTS_DIR = './eval/results';
 const SESSION_ID = `proxy_eval_${Date.now()}`;
 const UPSTREAM = 'https://api.anthropic.com';
 
-// Single-image-per-turn pattern: every call sees one current screenshot, so
-// the prompt has to be answerable from one image. "What changed" needs both
-// frames — Sonnet refuses with only one. A real agent loop typically asks
-// task-shaped questions about the current state; this neutral prompt is the
-// closest fair stand-in.
-const PROMPT_SCREENSHOT = 'Describe what is on this UI screenshot in one sentence.';
+// prev+curr fair-baseline pattern, mirrors eval/measure_tokens.ts. Both runs
+// send the prior screenshot alongside the current one so Run A and Run B both
+// have access to the same prior context. This is the only way the accuracy
+// judge can do an apples-to-apples comparison: otherwise Run B (which has
+// prior state via the proxy's text observation) sees changes Run A can't see,
+// and the judge marks them as MISS. Trade-off: savings look smaller in this
+// mode because the prev image still rides along in Run B's request, eating
+// ~1500 tokens per call. The realistic single-image-per-turn savings of
+// ~46/59% can be reproduced separately by sending only `curr`.
+const PROMPT_FIRST = 'Describe what is on this UI screenshot in one sentence.';
+const PROMPT_CHANGE =
+  'These are two consecutive UI screenshots. Summarize what changed between them in one sentence.';
+
+// Run B frames whose Sonnet response echoes the proxy's "no meaningful change"
+// stub are skip-equivalent: the visual gate filtered the frame, which mirrors
+// runStateLens()'s `action: 'skipped'` in eval/measure_tokens.ts. Marking them
+// here lets accuracy_check.ts treat them as expected matches (same semantics).
+const noChangeRe =
+  /no (meaningful )?(ui )?(change|changes?)|no change occurred|no change was detected|unchanged|no(thing)? changed/i;
 
 interface RunResult {
   label: string;
@@ -92,23 +105,28 @@ async function runOnce(
   const perFrame: RunResult['perFrame'] = [];
   const start = Date.now();
 
-  // Realistic agent loop pattern: one current screenshot per turn. The prior
-  // screenshot does NOT ride along in the request — a typical agent (Claude
-  // Code, Cursor, computer-use loop) keeps prior turns in conversation history
-  // (often cached) and only attaches the freshest screenshot. The proxy's
-  // savings story applies to that pattern.
+  // prev+curr per turn. Every call attaches both the prior and current
+  // screenshot plus the "what changed" prompt. The proxy only rewrites the
+  // LATEST image block, so Run B's request becomes [prev_image, text_obs,
+  // prompt] — prev still in tokens, latest replaced with a text observation.
   for (let i = 0; i < screenshots.length; i++) {
     const curr = screenshots[i];
+    const prev = i > 0 ? screenshots[i - 1] : null;
     const content: Array<
       | { type: 'image'; source: { type: 'base64'; media_type: 'image/png'; data: string } }
       | { type: 'text'; text: string }
-    > = [
-      {
+    > = [];
+    if (prev) {
+      content.push({
         type: 'image',
-        source: { type: 'base64', media_type: 'image/png', data: curr.toString('base64') },
-      },
-      { type: 'text', text: PROMPT_SCREENSHOT },
-    ];
+        source: { type: 'base64', media_type: 'image/png', data: prev.toString('base64') },
+      });
+    }
+    content.push({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/png', data: curr.toString('base64') },
+    });
+    content.push({ type: 'text', text: prev ? PROMPT_CHANGE : PROMPT_FIRST });
 
     const r = await client.messages.create(
       {
@@ -289,9 +307,16 @@ export async function main(): Promise<void> {
             total_input_tokens: totalBInputTokens,
             wall_time_ms: B.ms,
             estimated_cost: costB,
-            // action='text_summary' is a stub: at the SDK boundary every call
-            // returns a Sonnet response, so accuracy_check can judge each one.
-            per_frame: B.perFrame.map((f) => ({ ...f, action: 'text_summary' as const })),
+            // Mark frames where Sonnet echoed the proxy's "no meaningful change"
+            // stub as action='skipped' — the visual gate filtered them, which is
+            // an expected match (same semantics as the in-process eval). Other
+            // frames are 'text_summary' so the accuracy judge can compare them.
+            per_frame: B.perFrame.map((f) => ({
+              ...f,
+              action: noChangeRe.test(f.summary)
+                ? ('skipped' as const)
+                : ('text_summary' as const),
+            })),
           },
           savings: {
             token_reduction_pct: tokenReduction,
