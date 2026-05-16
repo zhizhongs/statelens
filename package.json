@@ -1,7 +1,7 @@
 {
-  "name": "statelens",
+  "name": "statelens-sdk",
   "version": "0.1.0",
-  "description": "Screenshot gateway for UI agents. Filters redundant screenshots, extracts semantic state changes, and cuts vision-token spend.",
+  "description": "Drop-in screenshot gateway for UI agents. Filters redundant frames, extracts semantic state changes, and cuts vision-token spend. Ships as an MCP server, an in-process routing library, and a local Anthropic-compatible proxy. Measured 70-82% input-token and 81-90% cost reduction on real Anthropic API calls.",
   "type": "module",
   "bin": {
     "statelens": "./dist/src/index.js"
@@ -44,22 +44,36 @@
     "accuracy": "node dist/eval/accuracy_check.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
     "mcp",
     "model-context-protocol",
+    "anthropic",
+    "claude",
     "ui-agent",
     "computer-use",
+    "browser-automation",
+    "playwright",
     "screenshot",
     "compression",
-    "observability"
+    "observability",
+    "ai-agent"
   ],
   "author": "zhizhongs <zhizhongs@uchicago.edu>",
   "license": "MIT",
   "engines": {
     "node": ">=20"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhizhongs/statelens.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zhizhongs/statelens/issues"
+  },
+  "homepage": "https://github.com/zhizhongs/statelens#readme",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
