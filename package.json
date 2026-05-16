@@ -28,13 +28,16 @@
   },
   "files": [
     "dist",
-    "docs",
+    "docs/PROXY_IMPLEMENTATION.md",
+    "docs/DEMO_AND_EVAL.md",
     "README.md",
+    "RESULTS.md",
     "DESIGN.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc",
     "serve": "node dist/src/server.js",
     "proxy": "node dist/src/index.js proxy",
     "run": "node dist/demo/run.js",

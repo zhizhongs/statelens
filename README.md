@@ -183,6 +183,7 @@ See [`RESULTS.md`](./RESULTS.md) for the full methodology, evolution, and per-fr
 
 ## Docs
 
+- [`RESULTS.md`](./RESULTS.md) — full methodology, measurement evolution, proxy A/B validation, MCP overhead investigation
 - [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md) — proxy implementation details
 - [`DESIGN.md`](./DESIGN.md) — architecture and product direction
 - [`docs/DEMO_AND_EVAL.md`](./docs/DEMO_AND_EVAL.md) — demo, eval, and measurement commands
