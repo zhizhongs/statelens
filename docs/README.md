@@ -8,11 +8,8 @@ Two people, two role docs, phased work with merge checkpoints.
 | [ROLE_DISTRIBUTION.md](./ROLE_DISTRIBUTION.md) | **Person B** | MCP server, CLI, measurement harness, demo, README, pitch. Also Anthropic console. |
 | [PIPELINE_PHASE1_IMPLEMENTATION.md](./PIPELINE_PHASE1_IMPLEMENTATION.md) | **Person A** | Phase 1 implementation design for Stages 1-3 and the minimal `observe()` wiring |
 | [PIPELINE_PHASE2_IMPLEMENTATION.md](./PIPELINE_PHASE2_IMPLEMENTATION.md) | **Person A** | Phase 2 implementation design for importance scoring, selective VLM, usage accounting, and timeline assembly |
-<<<<<<< HEAD
 | [POST_PHASE3_AGENT_INTEGRATION.md](./POST_PHASE3_AGENT_INTEGRATION.md) | **Shared** | Supplementary design for integrating the completed Phase 3 pipeline into real computer-use agent loops |
-=======
 | [DEMO_SCRIPT.md](./DEMO_SCRIPT.md) | **Person B** | Exact prompt and flow for the live Cursor MCP demo + stress-test checklist + backup plan |
->>>>>>> c6d413012b22b9a50f678bdc094f1231bfa7321a
 
 Shared spec: [`../DESIGN.md`](../DESIGN.md)
 
@@ -24,7 +21,7 @@ Phase 3 baseline results: [`../eval/results/phase3_baseline.json`](../eval/resul
 |---|---|---|---|---|
 | 1 | 0-6 | Stages 1-3 (visual gate, spatial diff, OCR) | 14 screenshots + MCP server in Cursor | CLI prints diffs; Cursor shows 4 tools |
 | 2 | 6-14 | Stages 4-6 + orchestrator | Measurement harness | `npm run measure` produces real numbers |
-| 3 | 14-24 | Edge cases + second scenario tested | Live demo polish + README + annotated images | 3× back-to-back demos succeed |
+| 3 | 14-24 | Edge cases tested (~~second scenario skipped~~) | Live demo polish + README + measured baseline | `npm run measure` produces real numbers |
 | 4 | 24-40 | Failure detection / CLIP / multi-lang | Playwright integration / HTML report | Stretch features stable |
 | 5 | 40-48 | Technical backstop | Slides + pitch + practice | Pitch is rehearsed |
 

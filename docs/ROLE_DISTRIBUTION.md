@@ -12,7 +12,7 @@ src/index.ts                 ← CLI: serve | run | measure
 eval/measure_tokens.ts       ← PRIMARY DEMO ARTIFACT — the headline numbers
 eval/results/                ← saved measurement runs
 demo/screenshots/login_flow/ ← 14 PNGs you record
-demo/screenshots/checkout_flow/ ← 2nd scenario you record
+demo/screenshots/checkout_flow/ ← ~~2nd scenario~~ SKIPPED in Phase 3 (see Phase 3 notes below)
 demo/run.ts                  ← batch CLI demo
 README.md                    ← install/configure instructions
 ```
@@ -293,7 +293,7 @@ The headline-number moment. **This is your demo evidence.**
 
 ### Tasks
 
-1. **Hour 14-17** — Record second screenshot scenario into `demo/screenshots/checkout_flow/`. Pick a flow with different UI patterns (cart → checkout → payment → confirm).
+1. **Hour 14-17** — ~~Record second screenshot scenario into `demo/screenshots/checkout_flow/`~~ **SKIPPED.** A second flow would exercise the same six pipeline paths on different pixels with no incremental signal. If a judge asks "does this generalize?", answer with the architecture: pipeline operates on pixel diffs + OCR + rule-based scoring, no learning, no UI-specific hardcoding. Spend this time on optimization (token reduction tuning) instead — see `eval/results/phase3_baseline.json` for the current numbers.
 2. **Hour 17-19** — Polish the live Cursor demo. Write `docs/DEMO_SCRIPT.md` with the exact prompt to paste into Cursor for the live walkthrough. Run it 3 times back-to-back, fix anything flaky.
 3. **Hour 19-21** — Finalize `README.md`: install snippets for Cursor, Claude Code, Claude Desktop. Architecture diagram. Quickstart. Run `npm run measure` link.
 4. **Hour 21-24** — Annotated diff images: extend `src/index.ts` `run` command to optionally save PNGs with bounding boxes drawn around changed regions (use sharp + svg overlay). High-impact for slides.
