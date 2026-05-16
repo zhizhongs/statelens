@@ -7,6 +7,12 @@ dist/
 .vscode/
 .idea/
 
+# Editor swap/backup files
+*.swp
+*.swo
+*.swn
+*~
+
 # Test output
 coverage/
 
