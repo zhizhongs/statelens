@@ -227,4 +227,89 @@ describe('observe orchestrator', () => {
     expect(timeline.events).toEqual([]);
     expect(timeline.vlm_calls_made).toBe(0);
   });
+
+  describe('action_failed (Phase 4 failure detection)', () => {
+    it('identical second frame with expect_change:click_submit returns action_failed', async () => {
+      const img = await solidPng(400, 300, '#ffffff');
+      await observe(img, 'test');
+      const result = await observe(img, 'test', 'expect_change:click_submit');
+
+      expect(result.event_type).toBe('action_failed');
+      expect(result.changed).toBe(false);
+      expect(result.keyframe).toBe(true);
+      expect(result.importance_score).toBe(0.6);
+      expect(result.vlm_called).toBe(false);
+      expect(result.changed_regions).toEqual([]);
+      expect(result.text_diff).toEqual({ added: [], removed: [] });
+      expect(result.event_summary).toContain('click_submit');
+    });
+
+    it('appends exactly one timeline event after session_start', async () => {
+      const img = await solidPng(400, 300, '#ffffff');
+      await observe(img, 'test');
+      await observe(img, 'test', 'expect_change:click_submit');
+
+      const timeline = getTimeline('test');
+      expect(timeline.events.length).toBe(2);
+      expect(timeline.events[0].event_type).toBe('session_start');
+      expect(timeline.events[1].event_type).toBe('action_failed');
+      expect(timeline.events[1].vlm_used).toBe(false);
+      expect(timeline.events[1].regions).toEqual([]);
+      expect(timeline.events[1].text_diff).toEqual({ added: [], removed: [] });
+      expect(anthropicMock.createCalls.value).toBe(0);
+    });
+
+    it('passive labels still return no_change without adding a timeline event', async () => {
+      const img = await solidPng(400, 300, '#ffffff');
+      await observe(img, 'test');
+
+      const wait = await observe(img, 'test', 'wait');
+      expect(wait.event_type).toBe('no_change');
+      expect(wait.keyframe).toBe(false);
+
+      const passivePoll = await observe(img, 'test', 'passive:poll');
+      expect(passivePoll.event_type).toBe('no_change');
+      expect(passivePoll.keyframe).toBe(false);
+
+      const observeScreenshot = await observe(img, 'test', 'observe:screenshot');
+      expect(observeScreenshot.event_type).toBe('no_change');
+      expect(observeScreenshot.keyframe).toBe(false);
+
+      expect(getTimeline('test').events.length).toBe(1);
+    });
+
+    it('first frame with expect_change:* still returns session_start', async () => {
+      const img = await solidPng(400, 300, '#ffffff');
+      const result = await observe(img, 'test', 'expect_change:click_submit');
+      expect(result.event_type).toBe('session_start');
+      expect(result.keyframe).toBe(true);
+    });
+
+    it('invalid screenshot after an expected-change action still returns invalid_screenshot', async () => {
+      const img = await solidPng(400, 300, '#ffffff');
+      await observe(img, 'test');
+
+      const bad = await observe(
+        Buffer.from('not an image'),
+        'test',
+        'expect_change:click_submit'
+      );
+      expect(bad.event_type).toBe('invalid_screenshot');
+      expect(bad.changed).toBe(false);
+      expect(bad.keyframe).toBe(false);
+
+      const after = await observe(img, 'test');
+      expect(after.event_type).toBe('no_change');
+      expect(getTimeline('test').events.length).toBe(1);
+    });
+
+    it('identical second frame without actionLabel still returns no_change', async () => {
+      const img = await solidPng(400, 300, '#ffffff');
+      await observe(img, 'test');
+      const result = await observe(img, 'test');
+      expect(result.event_type).toBe('no_change');
+      expect(result.keyframe).toBe(false);
+      expect(getTimeline('test').events.length).toBe(1);
+    });
+  });
 });

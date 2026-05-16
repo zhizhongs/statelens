@@ -8,9 +8,16 @@ import { getImageDimensions } from '../utils/image.js';
 
 let workerPromise: Promise<Worker> | null = null;
 
+function configuredOcrLangs(): string {
+  const raw = process.env.STATELENS_OCR_LANGS;
+  if (typeof raw !== 'string') return 'eng';
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : 'eng';
+}
+
 async function getWorker(): Promise<Worker> {
   if (!workerPromise) {
-    workerPromise = createWorker('eng').catch((err) => {
+    workerPromise = createWorker(configuredOcrLangs()).catch((err) => {
       workerPromise = null;
       throw err;
     });

@@ -13,6 +13,7 @@ import {
 } from './vlmExplainer.js';
 import { SessionTimeline } from './timeline.js';
 import { tryGetImageDimensions } from '../utils/image.js';
+import { shouldExpectVisualChange } from './actionExpectation.js';
 
 export interface ChangedRegion {
   x: number;
@@ -122,10 +123,11 @@ function buildObservation(
   };
 }
 
-function recordKeyframe(
+function recordTimelineEvent(
   session: SessionTimeline,
   start: number,
   fields: {
+    changed: boolean;
     importanceScore: number;
     eventType: string;
     eventSummary: string;
@@ -148,7 +150,7 @@ function recordKeyframe(
   });
 
   return buildObservation(start, {
-    changed: true,
+    changed: fields.changed,
     keyframe: true,
     importanceScore: fields.importanceScore,
     eventType: fields.eventType,
@@ -157,6 +159,21 @@ function recordKeyframe(
     textDiff,
     vlmCalled,
   });
+}
+
+function recordKeyframe(
+  session: SessionTimeline,
+  start: number,
+  fields: {
+    importanceScore: number;
+    eventType: string;
+    eventSummary: string;
+    changedRegions?: ChangedRegion[];
+    textDiff?: TextDiff;
+    vlmCalled?: boolean;
+  }
+): ObservationResult {
+  return recordTimelineEvent(session, start, { ...fields, changed: true });
 }
 
 async function timedStage<T>(
@@ -227,7 +244,7 @@ function buildRegionSummary(regions: ChangedRegion[]): string {
 export async function observe(
   screenshotBuffer: Buffer,
   sessionId: string = 'default',
-  _actionLabel?: string
+  actionLabel?: string
 ): Promise<ObservationResult> {
   const start = Date.now();
   const session = getOrCreateSession(sessionId);
@@ -277,6 +294,24 @@ export async function observe(
     }
 
     if (!gate.changed) {
+      let expectChange = false;
+      try {
+        expectChange = shouldExpectVisualChange(actionLabel);
+      } catch {
+        expectChange = false;
+      }
+
+      if (expectChange) {
+        const label = (actionLabel ?? '').trim();
+        return recordTimelineEvent(session, start, {
+          changed: false,
+          importanceScore: 0.6,
+          eventType: 'action_failed',
+          eventSummary: `Action "${label}" produced no meaningful UI change; the action may have failed or the page may be stuck`,
+          textDiff: emptyTextDiff(),
+        });
+      }
+
       return buildObservation(start, {
         changed: false,
         keyframe: false,

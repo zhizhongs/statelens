@@ -6,12 +6,14 @@ const ocrMock = vi.hoisted(() => {
     queue: [] as string[],
     recognizeCalls: { value: 0 },
     workerCreateCalls: { value: 0 },
+    workerCreateLangs: [] as unknown[],
   };
 });
 
 vi.mock('tesseract.js', () => ({
-  createWorker: async () => {
+  createWorker: async (langs?: unknown) => {
     ocrMock.workerCreateCalls.value++;
+    ocrMock.workerCreateLangs.push(langs);
     return {
       recognize: async () => {
         ocrMock.recognizeCalls.value++;
@@ -29,6 +31,8 @@ describe('ocrDiff', () => {
     ocrMock.queue.length = 0;
     ocrMock.recognizeCalls.value = 0;
     ocrMock.workerCreateCalls.value = 0;
+    ocrMock.workerCreateLangs.length = 0;
+    delete process.env.STATELENS_OCR_LANGS;
     await resetOcrWorker();
   });
 
@@ -101,5 +105,45 @@ describe('ocrDiff', () => {
     expect(result.added).toContain('送信 完了');
     expect(result.added).not.toContain('Café menu');
     expect(result.removed).toEqual([]);
+  });
+
+  describe('language configuration (STATELENS_OCR_LANGS)', () => {
+    it('defaults to eng when STATELENS_OCR_LANGS is unset', async () => {
+      await prewarmOcrWorker();
+      expect(ocrMock.workerCreateCalls.value).toBe(1);
+      expect(ocrMock.workerCreateLangs[0]).toBe('eng');
+    });
+
+    it('passes STATELENS_OCR_LANGS through to createWorker', async () => {
+      process.env.STATELENS_OCR_LANGS = 'eng+spa';
+      await prewarmOcrWorker();
+      expect(ocrMock.workerCreateCalls.value).toBe(1);
+      expect(ocrMock.workerCreateLangs[0]).toBe('eng+spa');
+    });
+
+    it('resetOcrWorker lets tests switch language configuration', async () => {
+      await prewarmOcrWorker();
+      expect(ocrMock.workerCreateLangs[0]).toBe('eng');
+
+      await resetOcrWorker();
+      process.env.STATELENS_OCR_LANGS = 'eng+jpn';
+      await prewarmOcrWorker();
+      expect(ocrMock.workerCreateCalls.value).toBe(2);
+      expect(ocrMock.workerCreateLangs[1]).toBe('eng+jpn');
+    });
+
+    it('empty-region calls do not initialize Tesseract', async () => {
+      process.env.STATELENS_OCR_LANGS = 'eng+spa';
+      const img = await solidPng(200, 100, '#ffffff');
+      const result = await ocrDiff(img, img, []);
+      expect(result).toEqual({ added: [], removed: [] });
+      expect(ocrMock.workerCreateCalls.value).toBe(0);
+    });
+
+    it('blank STATELENS_OCR_LANGS falls back to eng', async () => {
+      process.env.STATELENS_OCR_LANGS = '   ';
+      await prewarmOcrWorker();
+      expect(ocrMock.workerCreateLangs[0]).toBe('eng');
+    });
   });
 });
