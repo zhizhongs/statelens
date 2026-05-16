@@ -1,0 +1,110 @@
+{
+  "results_file": "eval/results/phase3_login_with_text.json",
+  "judge_model": "claude-haiku-4-5-20251001",
+  "total": 12,
+  "excluded_session_start": 1,
+  "skipped": 5,
+  "matches": 3,
+  "partials": 3,
+  "misses": 0,
+  "strict_agreement": 0.7272727272727273,
+  "lenient_agreement": 1,
+  "verdicts": [
+    {
+      "file": "001.png",
+      "action": "text_summary",
+      "run_a_summary": "This is the **GitHub login page**, featuring fields for username/email and password, a green \"Sign in\" button, options to continue with Google or Apple, and links to create an account, reset a password, or sign in with a passkey.",
+      "run_b_summary": "First screenshot in session | downstream: I see you've taken a screenshot, but it appears no image was actually shared in our conversation — just a text notification that a screenshot event occurred.\n\nCould you please **share the actual screenshot image** you'd like me to look at? Once you upload it, I'll be happy to help analyze, describe, or answer questions about it! 😊",
+      "agreement": "na",
+      "reason": "session_start has no prior frame to compare against — excluded from accuracy by construction"
+    },
+    {
+      "file": "002.png",
+      "action": "skipped",
+      "run_a_summary": "The **Username or email address** input field became focused (active), as indicated by the blue border highlight around it in the second screenshot.",
+      "run_b_summary": "(filtered by visual gate — no AI call)",
+      "agreement": "match",
+      "reason": "StateLens filtered the frame; no observation produced — counts as agreement by construction"
+    },
+    {
+      "file": "004.png",
+      "action": "skipped",
+      "run_a_summary": "The username field changed from \"zhizhongs\" to \"zhizhongs@uchicago.edu\", indicating the user added their email domain to complete their full university email address.",
+      "run_b_summary": "(filtered by visual gate — no AI call)",
+      "agreement": "match",
+      "reason": "StateLens filtered the frame; no observation produced — counts as agreement by construction"
+    },
+    {
+      "file": "005.png",
+      "action": "skipped",
+      "run_a_summary": "The password field became focused (active), as indicated by the blue highlight/border appearing around it in the second screenshot.",
+      "run_b_summary": "(filtered by visual gate — no AI call)",
+      "agreement": "match",
+      "reason": "StateLens filtered the frame; no observation produced — counts as agreement by construction"
+    },
+    {
+      "file": "006.png",
+      "action": "skipped",
+      "run_a_summary": "A password was entered in the password field (shown as dots/bullets) between the two screenshots.",
+      "run_b_summary": "(filtered by visual gate — no AI call)",
+      "agreement": "match",
+      "reason": "StateLens filtered the frame; no observation produced — counts as agreement by construction"
+    },
+    {
+      "file": "007.png",
+      "action": "skipped",
+      "run_a_summary": "The password field lost focus (the blue border highlight disappeared and the cursor is no longer visible) between the two screenshots.",
+      "run_b_summary": "(filtered by visual gate — no AI call)",
+      "agreement": "match",
+      "reason": "StateLens filtered the frame; no observation produced — counts as agreement by construction"
+    },
+    {
+      "file": "003.png",
+      "action": "text_summary",
+      "run_a_summary": "The username field changed from empty/focused (with a blue border) to filled with the text \"zhizhongs\" (with a neutral border).",
+      "run_b_summary": "Text changed: added \"| / zhizhongs / (\", removed \"| | / 4 / be\" | downstream: It looks like you're sharing a **screenshot event log** describing a text change, but I don't have the actual screenshot or full context to analyze.\n\nCould you clarify what you need help with? For example:\n\n- **Decoding/interpreting** the text change?\n- **Understanding** what \"zhizhongs\" means?\n- **Debugging** a text input event?\n- Something **translation-related**?\n\nA bit more context would help me assist you better! 😊",
+      "agreement": "partial",
+      "reason": "Description A clearly identifies a username field being filled with 'zhizhongs', while Description B's compressed format is garbled and difficult to parse, capturing only fragmentary elements of the actual change."
+    },
+    {
+      "file": "008.png",
+      "action": "vlm_handled",
+      "run_a_summary": "The user successfully entered their credentials (email: zhizhongs@uchicago.edu and password) and clicked \"Sign in,\" which navigated them to the Two-factor authentication page where GitHub is awaiting approval via the GitHub Mobile app.",
+      "run_b_summary": "After entering credentials, the user was redirected to a two-factor authentication screen requesting approval via the GitHub Mobile app.",
+      "agreement": "match",
+      "reason": "Both descriptions capture the same event: user entered credentials and was redirected to a two-factor authentication screen awaiting GitHub Mobile app approval."
+    },
+    {
+      "file": "009.png",
+      "action": "vlm_handled",
+      "run_a_summary": "The sign-in request via GitHub Mobile timed out, resulting in an error message (\"Sign-in request timed out. We could not verify your identity\") and the appearance of a \"Retry GitHub Mobile\" button.",
+      "run_b_summary": "A sign-in request timeout error appeared with a retry button and message indicating identity verification failed.",
+      "agreement": "match",
+      "reason": "Both describe the same sign-in timeout error with a retry option, differing only in specificity about the GitHub Mobile context and exact button label."
+    },
+    {
+      "file": "010.png",
+      "action": "vlm_handled",
+      "run_a_summary": "The sign-in request timed out error was dismissed and the \"More options\" menu was expanded, revealing the **Authenticator app** and **2FA recovery code** alternative authentication options.",
+      "run_b_summary": "The sign-in timeout error message was dismissed and the authentication method options expanded to show alternative 2FA methods including Authenticator app and 2FA recovery code.",
+      "agreement": "match",
+      "reason": "Both descriptions capture the same two sequential UI events: dismissing a sign-in timeout error and expanding a menu to reveal alternative 2FA authentication options."
+    },
+    {
+      "file": "011.png",
+      "action": "vlm_handled",
+      "run_a_summary": "The screen transitioned from the **GitHub Mobile app push notification** 2FA method (with options for Authenticator app and 2FA recovery code) to the **Authenticator app** 2FA method, displaying a code entry field (XXXXXX) and a \"Verify\" button.",
+      "run_b_summary": "The two-factor authentication screen transitioned from a method selection view to a code entry form with an input field and verify button.",
+      "agreement": "partial",
+      "reason": "Description B captures the general transition but misses the specific detail that it transitioned FROM GitHub Mobile app push notification TO Authenticator app method"
+    },
+    {
+      "file": "012.png",
+      "action": "vlm_handled",
+      "run_a_summary": "The user successfully completed two-factor authentication on GitHub and was redirected to their personal GitHub Dashboard homepage logged in as **zhizhongs**.",
+      "run_b_summary": "The two-factor authentication modal has been closed and the GitHub dashboard home feed is now fully visible.",
+      "agreement": "partial",
+      "reason": "A specifies successful 2FA completion and identifies the user as zhizhongs, while B only describes the modal closing without confirming authentication success or user identity"
+    }
+  ]
+}

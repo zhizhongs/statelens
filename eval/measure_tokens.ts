@@ -19,17 +19,37 @@ const PRICING: Record<string, { in: number; out: number }> = {
   [HAIKU_MODEL]: { in: 0.80, out: 4.0 },
 };
 
-const SCREENSHOTS_DIR = './demo/screenshots/login_flow';
+const DEFAULT_SCREENSHOTS_DIR = './demo/screenshots/login_flow';
 const RESULTS_DIR = './eval/results';
-const PROMPT =
-  'Summarize what changed since the previous screenshot in one sentence.';
+
+// CLI: `npm run measure -- <dir>` or `npm run measure -- --dir <dir>`.
+// Falls back to the default login_flow directory.
+function parseScreenshotsDir(): string {
+  const args = process.argv.slice(2);
+  const flagIdx = args.findIndex((a) => a === '--dir' || a === '-d');
+  if (flagIdx >= 0 && args[flagIdx + 1]) return args[flagIdx + 1];
+  const positional = args.find((a) => !a.startsWith('-'));
+  return positional ?? DEFAULT_SCREENSHOTS_DIR;
+}
+const SCREENSHOTS_DIR = parseScreenshotsDir();
+// Run A sends BOTH the previous and current screenshots to Sonnet and asks
+// "what changed". This is a fair baseline because StateLens internally also
+// uses prev+curr (via visualGate / spatialDiff / ocrDiff / vlmExplain). The
+// baseline becomes more expensive (2 images per call vs 1), which makes the
+// savings story more honest — a naive agent doing real change detection
+// would pass both frames just like we do here. First frame has no prev so
+// uses a state-description prompt instead.
+const PROMPT_FIRST =
+  'Describe what is on this UI screenshot in one sentence.';
+const PROMPT_CHANGE =
+  'These are two consecutive UI screenshots. Summarize what changed between them in one sentence.';
 
 interface RunAResult {
   calls: number;
   inputTokens: number;
   outputTokens: number;
   ms: number;
-  perFrame: Array<{ file: string; inputTokens: number; outputTokens: number }>;
+  perFrame: Array<{ file: string; inputTokens: number; outputTokens: number; summary: string }>;
 }
 
 interface RunBResult {
@@ -46,6 +66,7 @@ interface RunBResult {
     action: 'skipped' | 'text_summary' | 'vlm_handled';
     sonnetInputTokens: number;
     sonnetOutputTokens: number;
+    summary: string;
   }>;
 }
 
@@ -62,33 +83,36 @@ async function runBaseline(
 
   for (let i = 0; i < screenshots.length; i++) {
     const buf = screenshots[i];
+    const prev = i > 0 ? screenshots[i - 1] : null;
+    const content: Array<
+      | { type: 'image'; source: { type: 'base64'; media_type: 'image/png'; data: string } }
+      | { type: 'text'; text: string }
+    > = [];
+    if (prev) {
+      content.push({
+        type: 'image',
+        source: { type: 'base64', media_type: 'image/png', data: prev.toString('base64') },
+      });
+    }
+    content.push({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/png', data: buf.toString('base64') },
+    });
+    content.push({ type: 'text', text: prev ? PROMPT_CHANGE : PROMPT_FIRST });
     const r = await client.messages.create({
       model: MODEL,
       max_tokens: 200,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: 'image/png',
-                data: buf.toString('base64'),
-              },
-            },
-            { type: 'text', text: PROMPT },
-          ],
-        },
-      ],
+      messages: [{ role: 'user', content }],
     });
     inputTokens += r.usage.input_tokens;
     outputTokens += r.usage.output_tokens;
     calls++;
+    const summary = r.content.find((c) => c.type === 'text')?.text ?? '';
     perFrame.push({
       file: filenames[i],
       inputTokens: r.usage.input_tokens,
       outputTokens: r.usage.output_tokens,
+      summary,
     });
     process.stderr.write(
       chalk.dim(`  [A] ${filenames[i]}: ${r.usage.input_tokens} in\n`)
@@ -124,6 +148,7 @@ async function runStateLens(
         action: 'skipped',
         sonnetInputTokens: 0,
         sonnetOutputTokens: 0,
+        summary: 'no_change',
       });
       process.stderr.write(chalk.dim(`  [B] ${filenames[i]}: skipped\n`));
       continue;
@@ -148,11 +173,16 @@ async function runStateLens(
       sonnetInputTokens += r.usage.input_tokens;
       sonnetOutputTokens += r.usage.output_tokens;
       sonnetCalls++;
+      const downstreamSummary = r.content.find((c) => c.type === 'text')?.text ?? '';
       perFrame.push({
         file: filenames[i],
         action: 'text_summary',
         sonnetInputTokens: r.usage.input_tokens,
         sonnetOutputTokens: r.usage.output_tokens,
+        // We capture the StateLens event_summary (the upstream signal Sonnet reasoned over)
+        // followed by Sonnet's downstream paraphrase. Accuracy comparison uses the StateLens
+        // summary since that's what the agent would see in a real loop.
+        summary: `${obs.event_summary} | downstream: ${downstreamSummary}`,
       });
       process.stderr.write(
         chalk.dim(`  [B] ${filenames[i]}: text → ${r.usage.input_tokens} in\n`)
@@ -163,6 +193,7 @@ async function runStateLens(
         action: 'vlm_handled',
         sonnetInputTokens: 0,
         sonnetOutputTokens: 0,
+        summary: obs.event_summary,
       });
       process.stderr.write(
         chalk.dim(`  [B] ${filenames[i]}: vlm handled internally\n`)
