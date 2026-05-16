@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+.DS_Store
+.vscode/
+.idea/
+
+# Test output
+coverage/
+
+# Eval output (keep results/ structure but ignore individual run files)
+eval/results/*.json
+!eval/results/.gitkeep
+
+# Demo screenshots are committed (small PNGs), but ignore any large recordings
+demo/recordings/
+*.mp4
+*.mov
