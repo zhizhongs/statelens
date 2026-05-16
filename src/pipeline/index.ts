@@ -4,7 +4,7 @@
 import type { Buffer } from 'node:buffer';
 import { visualGate } from './visualGate.js';
 import { spatialDiff } from './spatialDiff.js';
-import { ocrDiff } from './ocrDiff.js';
+import { ocrDiff, prewarmOcrWorker } from './ocrDiff.js';
 import { importanceScore } from './importanceScorer.js';
 import {
   vlmExplain,
@@ -12,7 +12,7 @@ import {
   resetCumulativeUsage,
 } from './vlmExplainer.js';
 import { SessionTimeline } from './timeline.js';
-import { getImageDimensions } from '../utils/image.js';
+import { tryGetImageDimensions } from '../utils/image.js';
 
 export interface ChangedRegion {
   x: number;
@@ -64,16 +64,129 @@ export interface VlmUsage {
   output_tokens: number;
 }
 
-const EMPTY_TEXT_DIFF: TextDiff = { added: [], removed: [] };
 const sessions = new Map<string, SessionTimeline>();
 
+function configuredMaxSessions(): number {
+  const parsed = Number.parseInt(process.env.STATELENS_MAX_SESSIONS ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 100;
+}
+
 function getOrCreateSession(sessionId: string): SessionTimeline {
-  let session = sessions.get(sessionId);
-  if (!session) {
-    session = new SessionTimeline(sessionId);
-    sessions.set(sessionId, session);
+  const existing = sessions.get(sessionId);
+  if (existing) {
+    // Touch the session so the Map remains an LRU cache for long-running MCP use.
+    sessions.delete(sessionId);
+    sessions.set(sessionId, existing);
+    return existing;
   }
+
+  const session = new SessionTimeline(sessionId);
+  sessions.set(sessionId, session);
+
+  while (sessions.size > configuredMaxSessions()) {
+    const oldest = sessions.keys().next().value;
+    if (typeof oldest !== 'string') break;
+    sessions.delete(oldest);
+  }
+
   return session;
+}
+
+function emptyTextDiff(): TextDiff {
+  return { added: [], removed: [] };
+}
+
+function buildObservation(
+  start: number,
+  fields: {
+    changed: boolean;
+    keyframe: boolean;
+    importanceScore: number;
+    eventType: string;
+    eventSummary: string;
+    changedRegions?: ChangedRegion[];
+    textDiff?: TextDiff;
+    vlmCalled?: boolean;
+  }
+): ObservationResult {
+  return {
+    changed: fields.changed,
+    keyframe: fields.keyframe,
+    importance_score: fields.importanceScore,
+    event_type: fields.eventType,
+    event_summary: fields.eventSummary,
+    changed_regions: fields.changedRegions ?? [],
+    text_diff: fields.textDiff ?? emptyTextDiff(),
+    vlm_called: fields.vlmCalled ?? false,
+    latency_ms: Date.now() - start,
+  };
+}
+
+function recordKeyframe(
+  session: SessionTimeline,
+  start: number,
+  fields: {
+    importanceScore: number;
+    eventType: string;
+    eventSummary: string;
+    changedRegions?: ChangedRegion[];
+    textDiff?: TextDiff;
+    vlmCalled?: boolean;
+  }
+): ObservationResult {
+  const regions = fields.changedRegions ?? [];
+  const textDiff = fields.textDiff ?? emptyTextDiff();
+  const vlmCalled = fields.vlmCalled ?? false;
+
+  session.addEvent({
+    step: session.totalScreenshots,
+    event_type: fields.eventType,
+    summary: fields.eventSummary,
+    text_diff: textDiff,
+    regions,
+    vlm_used: vlmCalled,
+  });
+
+  return buildObservation(start, {
+    changed: true,
+    keyframe: true,
+    importanceScore: fields.importanceScore,
+    eventType: fields.eventType,
+    eventSummary: fields.eventSummary,
+    changedRegions: regions,
+    textDiff,
+    vlmCalled,
+  });
+}
+
+async function timedStage<T>(
+  session: SessionTimeline,
+  label: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  if (process.env.STATELENS_PROFILE !== '1') {
+    return fn();
+  }
+
+  const timerLabel = `statelens:${session.sessionId}:step${session.totalScreenshots}:${label}`;
+  console.time(timerLabel);
+  try {
+    return await fn();
+  } finally {
+    console.timeEnd(timerLabel);
+  }
+}
+
+function shortError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.length > 140 ? `${message.slice(0, 137)}...` : message;
+}
+
+function usageIncreased(before: VlmUsage, after: VlmUsage): boolean {
+  return (
+    after.input_tokens > before.input_tokens ||
+    after.output_tokens > before.output_tokens
+  );
 }
 
 function inferEventType(textDiff: TextDiff): string {
@@ -120,114 +233,175 @@ export async function observe(
   const session = getOrCreateSession(sessionId);
   session.incrementTotal();
 
-  const prev = session.getPrevScreenshot();
-  session.setPrevScreenshot(screenshotBuffer);
+  try {
+    const currDimensions = await timedStage(session, 'stage0.decode', () =>
+      tryGetImageDimensions(screenshotBuffer)
+    );
 
-  if (!prev) {
-    const event: TimelineEvent = {
-      step: session.totalScreenshots,
-      event_type: 'session_start',
-      summary: 'First screenshot in session',
-      text_diff: EMPTY_TEXT_DIFF,
-      regions: [],
-      vlm_used: false,
-    };
-    session.addEvent(event);
-    return {
-      changed: true,
-      keyframe: true,
-      importance_score: 1.0,
-      event_type: 'session_start',
-      event_summary: event.summary,
-      changed_regions: [],
-      text_diff: EMPTY_TEXT_DIFF,
-      vlm_called: false,
-      latency_ms: Date.now() - start,
-    };
+    if (!currDimensions) {
+      return buildObservation(start, {
+        changed: false,
+        keyframe: false,
+        importanceScore: 0,
+        eventType: 'invalid_screenshot',
+        eventSummary: 'Screenshot could not be decoded; previous session state was preserved',
+        textDiff: emptyTextDiff(),
+      });
+    }
+
+    const prev = session.getPrevScreenshot();
+    session.setPrevScreenshot(screenshotBuffer);
+
+    if (!prev) {
+      return recordKeyframe(session, start, {
+        importanceScore: 1.0,
+        eventType: 'session_start',
+        eventSummary: 'First screenshot in session',
+        textDiff: emptyTextDiff(),
+      });
+    }
+
+    // Stage 1: cheap visual gate
+    let gate;
+    try {
+      gate = await timedStage(session, 'stage1.visualGate', () =>
+        visualGate(prev, screenshotBuffer)
+      );
+    } catch (err) {
+      return recordKeyframe(session, start, {
+        importanceScore: 1,
+        eventType: 'analysis_error',
+        eventSummary: `Visual gate failed; returning current screenshot as a keyframe (${shortError(err)})`,
+        textDiff: emptyTextDiff(),
+      });
+    }
+
+    if (!gate.changed) {
+      return buildObservation(start, {
+        changed: false,
+        keyframe: false,
+        importanceScore: 0,
+        eventType: 'no_change',
+        eventSummary: `Filtered by ${gate.gate}`,
+        textDiff: emptyTextDiff(),
+      });
+    }
+
+    // Stage 2: spatial diff
+    let regions: ChangedRegion[];
+    try {
+      regions = await timedStage(session, 'stage2.spatialDiff', () =>
+        spatialDiff(prev, screenshotBuffer)
+      );
+    } catch (err) {
+      return recordKeyframe(session, start, {
+        importanceScore: 1,
+        eventType: 'analysis_error',
+        eventSummary: `Spatial diff failed; returning current screenshot as a keyframe (${shortError(err)})`,
+        textDiff: emptyTextDiff(),
+      });
+    }
+
+    // Stage 3: OCR text diff on changed regions only
+    let textDiff = emptyTextDiff();
+    let ocrError: unknown = null;
+    if (regions.length > 0) {
+      try {
+        textDiff = await timedStage(session, 'stage3.ocrDiff', () =>
+          ocrDiff(prev, screenshotBuffer, regions)
+        );
+      } catch (err) {
+        ocrError = err;
+      }
+    }
+
+    // Stage 4: importance scoring
+    const scoring = importanceScore(
+      regions,
+      textDiff,
+      currDimensions.width,
+      currDimensions.height
+    );
+
+    if (ocrError && scoring.score < 0.3) {
+      return recordKeyframe(session, start, {
+        importanceScore: Math.max(scoring.score, 0.3),
+        eventType: 'ocr_unavailable',
+        eventSummary: `Visual change detected; OCR text extraction failed (${shortError(ocrError)})`,
+        changedRegions: regions,
+        textDiff,
+      });
+    }
+
+    if (scoring.score < 0.3) {
+      return buildObservation(start, {
+        changed: true,
+        keyframe: false,
+        importanceScore: scoring.score,
+        eventType: 'minor_change',
+        eventSummary: 'Minor visual change, not significant',
+        changedRegions: regions,
+        textDiff,
+      });
+    }
+
+    let eventType: string;
+    let eventSummary: string;
+    let vlmCalled = false;
+
+    if (scoring.textSufficient) {
+      eventType = inferEventType(textDiff);
+      eventSummary = buildTextSummary(textDiff, regions);
+    } else if (scoring.shouldCallVlm) {
+      // Stage 5: selective VLM. If the model/API fails, return a local fallback
+      // keyframe instead of throwing out of the user-facing pipeline.
+      const usageBefore = getCumulativeUsage();
+      try {
+        const vlmResult = await timedStage(session, 'stage5.vlmExplain', () =>
+          vlmExplain(prev, screenshotBuffer, regions)
+        );
+        eventType = vlmResult.eventType;
+        eventSummary = vlmResult.summary;
+        vlmCalled = true;
+      } catch (err) {
+        const usageAfter = getCumulativeUsage();
+        vlmCalled = usageIncreased(usageBefore, usageAfter);
+        eventType = inferEventType(textDiff);
+        eventSummary = `${buildTextSummary(textDiff, regions)}; VLM explanation unavailable (${shortError(err)})`;
+      }
+    } else {
+      eventType = 'ui_change';
+      eventSummary = buildRegionSummary(regions);
+    }
+
+    // Stage 6: timeline assembly
+    return recordKeyframe(session, start, {
+      importanceScore: scoring.score,
+      eventType,
+      eventSummary,
+      changedRegions: regions,
+      textDiff,
+      vlmCalled,
+    });
+  } catch (err) {
+    try {
+      return recordKeyframe(session, start, {
+        importanceScore: 1,
+        eventType: 'analysis_error',
+        eventSummary: `Pipeline analysis failed; returning current screenshot as a keyframe (${shortError(err)})`,
+        textDiff: emptyTextDiff(),
+      });
+    } catch {
+      return buildObservation(start, {
+        changed: true,
+        keyframe: true,
+        importanceScore: 1,
+        eventType: 'analysis_error',
+        eventSummary: `Pipeline analysis failed (${shortError(err)})`,
+        textDiff: emptyTextDiff(),
+      });
+    }
   }
-
-  // Stage 1: cheap visual gate
-  const gate = await visualGate(prev, screenshotBuffer);
-  if (!gate.changed) {
-    return {
-      changed: false,
-      keyframe: false,
-      importance_score: 0,
-      event_type: 'no_change',
-      event_summary: `Filtered by ${gate.gate}`,
-      changed_regions: [],
-      text_diff: EMPTY_TEXT_DIFF,
-      vlm_called: false,
-      latency_ms: Date.now() - start,
-    };
-  }
-
-  // Stage 2: spatial diff
-  const regions = await spatialDiff(prev, screenshotBuffer);
-
-  // Stage 3: OCR text diff on changed regions only
-  const textDiff = regions.length > 0
-    ? await ocrDiff(prev, screenshotBuffer, regions)
-    : EMPTY_TEXT_DIFF;
-
-  // Stage 4: importance scoring
-  const { width, height } = await getImageDimensions(screenshotBuffer);
-  const scoring = importanceScore(regions, textDiff, width, height);
-
-  if (scoring.score < 0.3) {
-    return {
-      changed: true,
-      keyframe: false,
-      importance_score: scoring.score,
-      event_type: 'minor_change',
-      event_summary: 'Minor visual change, not significant',
-      changed_regions: regions,
-      text_diff: textDiff,
-      vlm_called: false,
-      latency_ms: Date.now() - start,
-    };
-  }
-
-  let eventType: string;
-  let eventSummary: string;
-  let vlmCalled = false;
-
-  if (scoring.textSufficient) {
-    eventType = inferEventType(textDiff);
-    eventSummary = buildTextSummary(textDiff, regions);
-  } else if (scoring.shouldCallVlm) {
-    // Stage 5: selective VLM
-    const vlmResult = await vlmExplain(prev, screenshotBuffer, regions);
-    eventType = vlmResult.eventType;
-    eventSummary = vlmResult.summary;
-    vlmCalled = true;
-  } else {
-    eventType = 'ui_change';
-    eventSummary = buildRegionSummary(regions);
-  }
-
-  // Stage 6: timeline assembly
-  const event: TimelineEvent = {
-    step: session.totalScreenshots,
-    event_type: eventType,
-    summary: eventSummary,
-    text_diff: textDiff,
-    regions,
-    vlm_used: vlmCalled,
-  };
-  session.addEvent(event);
-
-  return {
-    changed: true,
-    keyframe: true,
-    importance_score: scoring.score,
-    event_type: eventType,
-    event_summary: eventSummary,
-    changed_regions: regions,
-    text_diff: textDiff,
-    vlm_called: vlmCalled,
-    latency_ms: Date.now() - start,
-  };
 }
 
 export function getTimeline(sessionId: string = 'default'): TimelineResult {
@@ -260,3 +434,11 @@ export function getVlmCumulativeUsage(): VlmUsage {
 export function resetVlmCumulativeUsage(): void {
   resetCumulativeUsage();
 }
+
+// Optional Phase 3 prewarm hook for servers/CLIs that want to pay the
+// tesseract.js startup cost before the first OCR-bearing observation.
+export async function prewarmPipeline(): Promise<void> {
+  await prewarmOcrWorker();
+}
+
+export { prewarmOcrWorker };

@@ -10,7 +10,10 @@ let workerPromise: Promise<Worker> | null = null;
 
 async function getWorker(): Promise<Worker> {
   if (!workerPromise) {
-    workerPromise = createWorker('eng');
+    workerPromise = createWorker('eng').catch((err) => {
+      workerPromise = null;
+      throw err;
+    });
   }
   return workerPromise;
 }
@@ -18,14 +21,33 @@ async function getWorker(): Promise<Worker> {
 function cleanLines(raw: string): string[] {
   return raw
     .split('\n')
-    .map((line) => line.trim().replace(/\s+/g, ' '))
+    .map((line) =>
+      line
+        .normalize('NFKC')
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+        .trim()
+        .replace(/\s+/g, ' ')
+    )
     .filter((line) => line.length > 0);
 }
 
-function clamp(value: number, lo: number, hi: number): number {
-  if (value < lo) return lo;
-  if (value > hi) return hi;
-  return value;
+function cropForRegion(
+  region: ChangedRegion,
+  width: number,
+  height: number
+): { left: number; top: number; width: number; height: number } | null {
+  const left = Math.max(0, Math.floor(region.x));
+  const top = Math.max(0, Math.floor(region.y));
+  const right = Math.min(width, Math.ceil(region.x + region.w));
+  const bottom = Math.min(height, Math.ceil(region.y + region.h));
+  const cropW = right - left;
+  const cropH = bottom - top;
+
+  if (left >= width || top >= height || cropW <= 0 || cropH <= 0) {
+    return null;
+  }
+
+  return { left, top, width: cropW, height: cropH };
 }
 
 export async function ocrDiff(
@@ -37,24 +59,28 @@ export async function ocrDiff(
     return { added: [], removed: [] };
   }
 
-  const { width, height } = await getImageDimensions(currBuffer);
+  const [{ width, height }, prevDims] = await Promise.all([
+    getImageDimensions(currBuffer),
+    getImageDimensions(prevBuffer),
+  ]);
   const worker = await getWorker();
+  const prevSource =
+    prevDims.width === width && prevDims.height === height
+      ? prevBuffer
+      : await sharp(prevBuffer).resize(width, height, { fit: 'fill' }).toBuffer();
 
   const prevTexts = new Set<string>();
   const currTexts = new Set<string>();
 
   for (const region of regions) {
-    const left = clamp(region.x, 0, Math.max(0, width - 1));
-    const top = clamp(region.y, 0, Math.max(0, height - 1));
-    const cropW = clamp(region.w, 1, width - left);
-    const cropH = clamp(region.h, 1, height - top);
-    const cropOpts = { left, top, width: cropW, height: cropH };
+    const cropOpts = cropForRegion(region, width, height);
+    if (!cropOpts) continue;
 
     let prevCrop: Buffer;
     let currCrop: Buffer;
     try {
       [prevCrop, currCrop] = await Promise.all([
-        sharp(prevBuffer).extract(cropOpts).toBuffer(),
+        sharp(prevSource).extract(cropOpts).toBuffer(),
         sharp(currBuffer).extract(cropOpts).toBuffer(),
       ]);
     } catch {
@@ -79,6 +105,10 @@ export async function ocrDiff(
     added: [...currTexts].filter((t) => !prevTexts.has(t)),
     removed: [...prevTexts].filter((t) => !currTexts.has(t)),
   };
+}
+
+export async function prewarmOcrWorker(): Promise<void> {
+  await getWorker();
 }
 
 // Exposed for tests / clean shutdown.

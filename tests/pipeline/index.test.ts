@@ -68,6 +68,20 @@ describe('observe orchestrator', () => {
     expect(result.vlm_called).toBe(false);
   });
 
+  it('returns a structured invalid_screenshot observation and preserves prior state', async () => {
+    const img = await solidPng(400, 300, '#ffffff');
+    await observe(img, 'test');
+
+    const bad = await observe(Buffer.from('not an image'), 'test');
+    expect(bad.event_type).toBe('invalid_screenshot');
+    expect(bad.changed).toBe(false);
+    expect(bad.keyframe).toBe(false);
+
+    const after = await observe(img, 'test');
+    expect(after.event_type).toBe('no_change');
+    expect(getTimeline('test').events.length).toBe(1);
+  });
+
   it('returns no_change on an identical second frame and does not add a timeline event', async () => {
     const img = await solidPng(400, 300, '#ffffff');
     await observe(img, 'test');
@@ -144,6 +158,27 @@ describe('observe orchestrator', () => {
 
     const timeline = getTimeline('test');
     expect(timeline.vlm_calls_made).toBe(1);
+  });
+
+  it('falls back to a local keyframe when VLM returns malformed JSON after usage is counted', async () => {
+    const base = await solidPng(400, 300, '#ffffff');
+    const changed = await pngWithRects(400, 300, '#ffffff', [
+      { x: 20, y: 20, w: 360, h: 260, color: '#aa0000' },
+    ]);
+    tessMock.queue.push('', 'Error: invalid password');
+    anthropicMock.responseQueue.push({
+      content: [{ type: 'text', text: 'not json' }],
+      usage: { input_tokens: 222, output_tokens: 9 },
+    });
+
+    await observe(base, 'test');
+    const result = await observe(changed, 'test');
+    expect(result.keyframe).toBe(true);
+    expect(result.event_type).toBe('error_appeared');
+    expect(result.event_summary).toContain('VLM explanation unavailable');
+    expect(result.vlm_called).toBe(true);
+    expect(getVlmCumulativeUsage()).toEqual({ input_tokens: 222, output_tokens: 9 });
+    expect(getTimeline('test').vlm_calls_made).toBe(1);
   });
 
   it('getVlmCumulativeUsage() proxies the Stage 5 counter; resetVlmCumulativeUsage() clears it', async () => {
