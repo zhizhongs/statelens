@@ -39,7 +39,12 @@ function getClient(): Anthropic {
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error('ANTHROPIC_API_KEY is required for vlmExplain()');
     }
-    client = new Anthropic();
+    const baseURL =
+      process.env.STATELENS_INTERNAL_ANTHROPIC_BASE_URL ??
+      (process.env.STATELENS_PROXY_ACTIVE === '1'
+        ? process.env.STATELENS_ANTHROPIC_UPSTREAM_BASE_URL ?? 'https://api.anthropic.com'
+        : undefined);
+    client = new Anthropic(baseURL ? { baseURL } : undefined);
   }
   return client;
 }

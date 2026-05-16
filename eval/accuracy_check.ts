@@ -30,13 +30,30 @@ interface ResultsFile {
   };
 }
 
-interface FrameVerdict {
+export interface FrameVerdict {
   file: string;
   action: string;
   run_a_summary: string;
   run_b_summary: string;
   agreement: 'match' | 'partial' | 'miss' | 'na';
   reason: string;
+}
+
+export interface AccuracyCheckRun {
+  outPath: string;
+  data: {
+    results_file: string;
+    judge_model: string;
+    total: number;
+    excluded_session_start: number;
+    skipped: number;
+    matches: number;
+    partials: number;
+    misses: number;
+    strict_agreement: number;
+    lenient_agreement: number;
+    verdicts: FrameVerdict[];
+  };
 }
 
 // First-frame session_start has no prior frame to compare against — exclude from accuracy.
@@ -78,15 +95,9 @@ Do these describe the same UI event? Respond with JSON only:
   }
 }
 
-export async function main(): Promise<void> {
-  const resultsPath = process.argv[2];
-  if (!resultsPath) {
-    console.error('Usage: node dist/eval/accuracy_check.js <results.json>');
-    process.exit(1);
-  }
+export async function runAccuracyCheck(resultsPath: string): Promise<AccuracyCheckRun> {
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.error('ANTHROPIC_API_KEY not set');
-    process.exit(1);
+    throw new Error('ANTHROPIC_API_KEY not set. Check .env or environment.');
   }
 
   const results: ResultsFile = JSON.parse(await readFile(resultsPath, 'utf-8'));
@@ -206,32 +217,36 @@ export async function main(): Promise<void> {
   console.log(`  Lenient agreement:      ${(lenient * 100).toFixed(1)}%  (matches + partials + skipped) / ${denom}`);
 
   const outPath = resultsPath.replace(/\.json$/, '.accuracy.json');
-  await writeFile(
-    outPath,
-    JSON.stringify(
-      {
-        results_file: resultsPath,
-        judge_model: JUDGE_MODEL,
-        total,
-        excluded_session_start: naCount,
-        skipped,
-        matches,
-        partials,
-        misses,
-        strict_agreement: strict,
-        lenient_agreement: lenient,
-        verdicts,
-      },
-      null,
-      2
-    )
-  );
+  const data = {
+    results_file: resultsPath,
+    judge_model: JUDGE_MODEL,
+    total,
+    excluded_session_start: naCount,
+    skipped,
+    matches,
+    partials,
+    misses,
+    strict_agreement: strict,
+    lenient_agreement: lenient,
+    verdicts,
+  };
+  await writeFile(outPath, JSON.stringify(data, null, 2));
   console.log(chalk.dim(`\n  Saved verdicts to ${outPath}`));
+  return { outPath, data };
+}
+
+export async function main(): Promise<void> {
+  const resultsPath = process.argv[2];
+  if (!resultsPath) {
+    throw new Error('Usage: node dist/eval/accuracy_check.js <results.json>');
+  }
+  await runAccuracyCheck(resultsPath);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((err) => {
-    console.error(err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(chalk.red(message));
     process.exit(1);
   });
 }

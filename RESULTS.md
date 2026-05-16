@@ -230,6 +230,14 @@ npm run measure -- demo/screenshots/checkout_flow  # checkout flow
 node dist/eval/accuracy_check.js <results.json>    # accuracy on any result
 ```
 
+For the live computer-use path (fresh screenshots captured on demand, no `demo/screenshots` replay), run:
+```bash
+npm run build
+npm run eval:live
+```
+
+That writes `eval/results/live_login_*.json` for efficiency and `eval/results/live_login_*.accuracy.json` for accuracy, using the same result schema as the committed Phase 4 files above.
+
 ## Headline for the pitch
 
 > "Across two scenarios — a 12-frame login flow and a 10-frame Zara checkout — StateLens reduced input tokens by **70-82%** and cost by **81-90%** against a real change-detection baseline (raw screenshots through Sonnet, every frame). On login, no events were missed (**100% lenient agreement** with a Haiku judge). On checkout — a form-heavy flow with zero gate-filterable frames — accuracy was 56% lenient before tuning; we identified the OCR-reliability failure mode and shipped a fix in 30 minutes that lifted it to **78%**, dropping token reduction 10pp in exchange. Both numbers come from real Anthropic API tokens, not estimates, and are reproducible with `npm run measure`."

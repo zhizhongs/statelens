@@ -1,9 +1,9 @@
 # StateLens
 
-> Open-source MCP server for UI agent observation compression. **Measured 70-82% input-token reduction and 81-90% cost reduction on real Anthropic API calls, with 78-100% event-capture accuracy** across two screenshot scenarios. See [`RESULTS.md`](./RESULTS.md) for the full numbers.
+> Screenshot gateway for UI agents. StateLens ships as an MCP server, an in-process routing library, and a local Anthropic-compatible proxy. **Measured 70-82% input-token reduction and 81-90% cost reduction on real Anthropic API calls, with 78-100% event-capture accuracy** across two screenshot scenarios. See [`RESULTS.md`](./RESULTS.md) for the full numbers.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-54%20passing-brightgreen.svg)](./tests)
+[![Tests](https://img.shields.io/badge/tests-96%20passing-brightgreen.svg)](./tests)
 [![MCP](https://img.shields.io/badge/protocol-MCP-orange.svg)](https://modelcontextprotocol.io/)
 
 ## The problem
@@ -26,14 +26,14 @@ Result: the same screenshot-heavy task that costs $0.12 in raw Sonnet calls cost
 
 ## How users plug it in
 
-There are two integration surfaces. Pick based on what you control.
+There are three integration surfaces. Pick based on what you control.
 
 ### Path A — MCP server (for editors and closed clients)
 
 For developers using **Cursor**, **Claude Code**, **Claude Desktop**, or any MCP-compatible client. Zero code changes: install the server, add it to your MCP config, give the agent a one-line policy prompt.
 
 ```bash
-npm install -g statelens
+npm install -g statelens-sdk
 ```
 
 Add to your MCP config (`~/.cursor/mcp.json`, `~/.claude/mcp.json`, or `claude_desktop_config.json`):
@@ -65,7 +65,7 @@ Call statelens_timeline before summarizing the session or reporting what
 happened.
 ```
 
-**Caveat:** MCP tool selection is voluntary. Closed clients can ignore a tool on any given turn. If you need guaranteed interception, use Path B.
+**Caveat:** MCP tool selection is voluntary. Closed clients can ignore a tool on any given turn. If you need guaranteed interception, use Path B or Path C.
 
 ### Path B — In-process adapter (for live UI agents you control)
 
@@ -74,7 +74,7 @@ For agents whose runtime you control: **Playwright/Puppeteer test runners with a
 This isn't just "feed StateLens prerecorded screenshots." It's a real-time middleware that sits inside a live UI automation loop: every time your agent takes an action and the page changes, StateLens decides whether the LLM needs to see anything.
 
 ```ts
-import { captureAndRoute } from 'statelens/dist/src/adapters/playwright.js';
+import { captureAndRoute } from 'statelens-sdk/adapters/playwright';
 
 // Inside your agent's action loop:
 await page.click('#submit');
@@ -133,6 +133,25 @@ Mock VLM calls actually made: 1
 ```
 
 5 agent actions → 1 VLM call. That's the value StateLens adds to a live workflow.
+
+### Path C — Anthropic-compatible proxy (for SDK-based agents you can point at a different baseURL)
+
+For agents whose runtime you **don't** control directly but whose Anthropic SDK client exposes a `baseURL` override — Claude Code, Cursor agents, custom binaries, anything built on `@anthropic-ai/sdk` that lets you swap the endpoint. Boot the proxy locally, point your client at it, and StateLens intercepts screenshot image blocks in `POST /v1/messages` requests before they reach Anthropic.
+
+```bash
+npm run build
+statelens proxy --provider anthropic --port 8443
+export ANTHROPIC_BASE_URL=http://localhost:8443
+```
+
+The gateway receives Anthropic-compatible `POST /v1/messages` requests, detects screenshot image blocks, runs the existing StateLens pipeline, and either:
+
+- forwards the request unchanged (full visual grounding needed),
+- replaces the image block with a text observation and forwards (the pipeline has enough context),
+- replaces the image block with a "no meaningful change" stub and forwards (visual gate filtered),
+- conservatively forwards unchanged on any analysis error.
+
+Hard short-circuit responses are intentionally not the default. See [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md) for the request rewriting rules, session handling, and the recursion guard that keeps StateLens's own internal Haiku calls from looping through the proxy.
 
 ## MCP tools
 
@@ -248,7 +267,10 @@ Full methodology and evolution: [`RESULTS.md`](./RESULTS.md).
 ## Architecture
 
 ```
-Screenshot Input
+Input surface
+  - MCP tool call (Path A)
+  - In-process adapter (Path B)
+  - Anthropic proxy /v1/messages (Path C)
        │
        ▼
 [Stage 1] Cheap Visual Gate          ──  hash + pixelmatch, <5ms, zero AI
@@ -270,10 +292,10 @@ Screenshot Input
 [Stage 6] Timeline Assembly          ──  session event log + cost metrics
        │
        ▼
-Structured Observation Response
+Structured observation (Paths A/B) or rewritten model request (Path C)
 ```
 
-See [`DESIGN.md`](./DESIGN.md) Section 4 for per-stage implementation details.
+See [`DESIGN.md`](./DESIGN.md) Section 4 for per-stage implementation details and [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md) for the Path C gateway internals.
 
 ## Project layout
 
@@ -281,9 +303,11 @@ See [`DESIGN.md`](./DESIGN.md) Section 4 for per-stage implementation details.
 src/pipeline/        Pipeline stages (visual gate, spatial diff, OCR, scorer, VLM, timeline)
 src/server.ts        MCP server (stdio transport, 4 tools)
 src/adapters/        In-process adapters (Playwright, generic route helper)
-src/index.ts         CLI: serve | run | measure
+src/gateway/         Shared request-rewriting layer (image extraction, routing policy, session)
+src/proxy/           Local Anthropic-compatible HTTP proxy
+src/index.ts         CLI: serve | proxy | run | measure | live-demo | live-eval
 eval/                A/B token measurement harness + Haiku accuracy judge
-demo/                Prerecorded screenshot sequences (login, checkout)
+demo/                Prerecorded screenshot sequences (login, checkout) + live computer-use loop
 tests/               Vitest unit tests
 docs/                Design docs and implementation notes
 ```
@@ -295,7 +319,7 @@ git clone https://github.com/zhizhongs/statelens.git
 cd statelens
 npm install
 npm run build       # production build to ./dist
-npm test            # vitest run (54 tests across pipeline + adapters)
+npm test            # vitest run
 npm run dev         # tsc --watch
 ```
 

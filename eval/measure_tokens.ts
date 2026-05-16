@@ -9,6 +9,7 @@ import {
   getVlmCumulativeUsage,
   resetVlmCumulativeUsage,
 } from '../src/pipeline/index.js';
+import { resetOcrWorker } from '../src/pipeline/ocrDiff.js';
 
 const MODEL = 'claude-sonnet-4-6';
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
@@ -25,13 +26,31 @@ const RESULTS_DIR = './eval/results';
 // CLI: `npm run measure -- <dir>` or `npm run measure -- --dir <dir>`.
 // Falls back to the default login_flow directory.
 function parseScreenshotsDir(): string {
-  const args = process.argv.slice(2);
+  const rawArgs = process.argv.slice(2);
+  const args = rawArgs[0] === 'measure' ? rawArgs.slice(1) : rawArgs;
   const flagIdx = args.findIndex((a) => a === '--dir' || a === '-d');
   if (flagIdx >= 0 && args[flagIdx + 1]) return args[flagIdx + 1];
   const positional = args.find((a) => !a.startsWith('-'));
   return positional ?? DEFAULT_SCREENSHOTS_DIR;
 }
-const SCREENSHOTS_DIR = parseScreenshotsDir();
+
+async function loadScreenshotsFromDir(
+  screenshotsDir: string
+): Promise<{ screenshots: Buffer[]; filenames: string[] }> {
+  const filenames = (await readdir(screenshotsDir))
+    .filter((f) => extname(f).toLowerCase() === '.png')
+    .sort();
+
+  if (filenames.length === 0) {
+    throw new Error(`No PNG files found in ${screenshotsDir}`);
+  }
+
+  const screenshots = await Promise.all(
+    filenames.map((f) => readFile(join(screenshotsDir, f)))
+  );
+
+  return { screenshots, filenames };
+}
 // Run A sends BOTH the previous and current screenshots to Sonnet and asks
 // "what changed". This is a fair baseline because StateLens internally also
 // uses prev+curr (via visualGate / spatialDiff / ocrDiff / vlmExplain). The
@@ -44,7 +63,7 @@ const PROMPT_FIRST =
 const PROMPT_CHANGE =
   'These are two consecutive UI screenshots. Summarize what changed between them in one sentence.';
 
-interface RunAResult {
+export interface RunAResult {
   calls: number;
   inputTokens: number;
   outputTokens: number;
@@ -52,7 +71,7 @@ interface RunAResult {
   perFrame: Array<{ file: string; inputTokens: number; outputTokens: number; summary: string }>;
 }
 
-interface RunBResult {
+export interface RunBResult {
   sonnetCalls: number;
   sonnetInputTokens: number;
   sonnetOutputTokens: number;
@@ -70,7 +89,22 @@ interface RunBResult {
   }>;
 }
 
-async function runBaseline(
+export interface MeasurementInput {
+  screenshots: Buffer[];
+  filenames: string[];
+  taskLabel?: string;
+  source?: Record<string, unknown>;
+  outputPrefix?: string;
+}
+
+export interface MeasurementRun {
+  outPath: string;
+  data: Record<string, unknown>;
+  runA: RunAResult;
+  runB: RunBResult;
+}
+
+export async function runBaseline(
   client: Anthropic,
   screenshots: Buffer[],
   filenames: string[]
@@ -122,7 +156,7 @@ async function runBaseline(
   return { calls, inputTokens, outputTokens, ms: Date.now() - start, perFrame };
 }
 
-async function runStateLens(
+export async function runStateLens(
   client: Anthropic,
   screenshots: Buffer[],
   filenames: string[]
@@ -227,7 +261,8 @@ function fmt(n: number): string {
 function printResults(
   frameCount: number,
   A: RunAResult,
-  B: RunBResult
+  B: RunBResult,
+  taskLabel = `${frameCount}-frame UI flow analysis`
 ): void {
   const costA =
     costForTokens(A.inputTokens, PRICING[MODEL].in) +
@@ -252,7 +287,7 @@ function printResults(
   const latencyReduction = A.ms > 0 ? ((A.ms - B.ms) / A.ms) * 100 : 0;
 
   console.log('');
-  console.log(chalk.bold(`Task: ${frameCount}-frame login flow analysis`));
+  console.log(chalk.bold(`Task: ${taskLabel}`));
   console.log(
     chalk.bold(
       `Model: ${MODEL} (StateLens internal: ${HAIKU_MODEL})`
@@ -293,28 +328,22 @@ function printResults(
   console.log('');
 }
 
-export async function main(): Promise<void> {
+export async function runMeasurementOnScreenshots({
+  screenshots,
+  filenames,
+  taskLabel = `${screenshots.length}-frame UI flow analysis`,
+  source,
+  outputPrefix = 'run',
+}: MeasurementInput): Promise<MeasurementRun> {
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.error(
-      chalk.red('ANTHROPIC_API_KEY not set. Check .env or environment.')
-    );
-    process.exit(1);
+    throw new Error('ANTHROPIC_API_KEY not set. Check .env or environment.');
   }
 
   const client = new Anthropic();
 
-  const files = (await readdir(SCREENSHOTS_DIR))
-    .filter((f) => extname(f).toLowerCase() === '.png')
-    .sort();
-
-  if (files.length === 0) {
-    console.error(chalk.red(`No PNG files found in ${SCREENSHOTS_DIR}`));
-    process.exit(1);
+  if (screenshots.length === 0 || screenshots.length !== filenames.length) {
+    throw new Error('Measurement requires a non-empty screenshot list with matching filenames.');
   }
-
-  const screenshots = await Promise.all(
-    files.map((f) => readFile(join(SCREENSHOTS_DIR, f)))
-  );
 
   console.log(
     chalk.bold(
@@ -323,13 +352,18 @@ export async function main(): Promise<void> {
   );
 
   console.log(chalk.yellow('Run A — Baseline (raw images to Sonnet)...'));
-  const A = await runBaseline(client, screenshots, files);
+  const A = await runBaseline(client, screenshots, filenames);
 
   console.log('');
   console.log(chalk.green('Run B — StateLens compression...'));
-  const B = await runStateLens(client, screenshots, files);
+  let B: RunBResult;
+  try {
+    B = await runStateLens(client, screenshots, filenames);
+  } finally {
+    await resetOcrWorker();
+  }
 
-  printResults(screenshots.length, A, B);
+  printResults(screenshots.length, A, B, taskLabel);
 
   // Save results JSON
   await mkdir(RESULTS_DIR, { recursive: true });
@@ -349,6 +383,7 @@ export async function main(): Promise<void> {
     timestamp: new Date().toISOString(),
     model: MODEL,
     haiku_model: HAIKU_MODEL,
+    source,
     frame_count: screenshots.length,
     run_a: {
       calls: A.calls,
@@ -386,14 +421,29 @@ export async function main(): Promise<void> {
     pricing: PRICING,
   };
 
-  const outPath = join(RESULTS_DIR, `run_${timestamp}.json`);
+  const safePrefix = outputPrefix.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+  const outPath = join(RESULTS_DIR, `${safePrefix}_${timestamp}.json`);
   await writeFile(outPath, JSON.stringify(resultData, null, 2));
   console.log(chalk.dim(`Results saved to ${outPath}`));
+  return { outPath, data: resultData, runA: A, runB: B };
+}
+
+export async function main(): Promise<void> {
+  const screenshotsDir = parseScreenshotsDir();
+  const { screenshots, filenames } = await loadScreenshotsFromDir(screenshotsDir);
+  await runMeasurementOnScreenshots({
+    screenshots,
+    filenames,
+    taskLabel: `${screenshots.length}-frame screenshot-directory flow analysis`,
+    source: { type: 'screenshot_directory', path: screenshotsDir },
+    outputPrefix: 'run',
+  });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((err) => {
-    console.error(err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(chalk.red(message));
     process.exit(1);
   });
 }
