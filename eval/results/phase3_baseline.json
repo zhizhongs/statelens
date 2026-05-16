@@ -1,0 +1,176 @@
+{
+  "timestamp": "2026-05-16T17:20:42.903Z",
+  "model": "claude-sonnet-4-6",
+  "haiku_model": "claude-haiku-4-5-20251001",
+  "frame_count": 12,
+  "run_a": {
+    "calls": 12,
+    "input_tokens": 19008,
+    "output_tokens": 462,
+    "wall_time_ms": 33176,
+    "estimated_cost": 0.06395400000000001,
+    "per_frame": [
+      {
+        "file": "001.png",
+        "inputTokens": 1584,
+        "outputTokens": 38
+      },
+      {
+        "file": "002.png",
+        "inputTokens": 1584,
+        "outputTokens": 34
+      },
+      {
+        "file": "003.png",
+        "inputTokens": 1584,
+        "outputTokens": 30
+      },
+      {
+        "file": "004.png",
+        "inputTokens": 1584,
+        "outputTokens": 42
+      },
+      {
+        "file": "005.png",
+        "inputTokens": 1584,
+        "outputTokens": 30
+      },
+      {
+        "file": "006.png",
+        "inputTokens": 1584,
+        "outputTokens": 35
+      },
+      {
+        "file": "007.png",
+        "inputTokens": 1584,
+        "outputTokens": 50
+      },
+      {
+        "file": "008.png",
+        "inputTokens": 1584,
+        "outputTokens": 53
+      },
+      {
+        "file": "009.png",
+        "inputTokens": 1584,
+        "outputTokens": 37
+      },
+      {
+        "file": "010.png",
+        "inputTokens": 1584,
+        "outputTokens": 36
+      },
+      {
+        "file": "011.png",
+        "inputTokens": 1584,
+        "outputTokens": 36
+      },
+      {
+        "file": "012.png",
+        "inputTokens": 1584,
+        "outputTokens": 41
+      }
+    ]
+  },
+  "run_b": {
+    "sonnet_calls": 3,
+    "haiku_calls": 1,
+    "skipped_frames": 5,
+    "sonnet_input_tokens": 71,
+    "sonnet_output_tokens": 426,
+    "haiku_input_tokens": 14178,
+    "haiku_output_tokens": 403,
+    "total_input_tokens": 14249,
+    "wall_time_ms": 30513,
+    "estimated_cost": 0.019557400000000003,
+    "per_frame": [
+      {
+        "file": "001.png",
+        "action": "text_summary",
+        "sonnetInputTokens": 14,
+        "sonnetOutputTokens": 53
+      },
+      {
+        "file": "002.png",
+        "action": "skipped",
+        "sonnetInputTokens": 0,
+        "sonnetOutputTokens": 0
+      },
+      {
+        "file": "003.png",
+        "action": "text_summary",
+        "sonnetInputTokens": 36,
+        "sonnetOutputTokens": 174
+      },
+      {
+        "file": "004.png",
+        "action": "skipped",
+        "sonnetInputTokens": 0,
+        "sonnetOutputTokens": 0
+      },
+      {
+        "file": "005.png",
+        "action": "skipped",
+        "sonnetInputTokens": 0,
+        "sonnetOutputTokens": 0
+      },
+      {
+        "file": "006.png",
+        "action": "skipped",
+        "sonnetInputTokens": 0,
+        "sonnetOutputTokens": 0
+      },
+      {
+        "file": "007.png",
+        "action": "skipped",
+        "sonnetInputTokens": 0,
+        "sonnetOutputTokens": 0
+      },
+      {
+        "file": "008.png",
+        "action": "text_summary",
+        "sonnetInputTokens": 21,
+        "sonnetOutputTokens": 199
+      },
+      {
+        "file": "009.png",
+        "action": "vlm_handled",
+        "sonnetInputTokens": 0,
+        "sonnetOutputTokens": 0
+      },
+      {
+        "file": "010.png",
+        "action": "vlm_handled",
+        "sonnetInputTokens": 0,
+        "sonnetOutputTokens": 0
+      },
+      {
+        "file": "011.png",
+        "action": "vlm_handled",
+        "sonnetInputTokens": 0,
+        "sonnetOutputTokens": 0
+      },
+      {
+        "file": "012.png",
+        "action": "vlm_handled",
+        "sonnetInputTokens": 0,
+        "sonnetOutputTokens": 0
+      }
+    ]
+  },
+  "savings": {
+    "token_reduction_pct": 25.036826599326602,
+    "cost_reduction_pct": 69.41958282515557,
+    "latency_reduction_pct": 8.026886906197252
+  },
+  "pricing": {
+    "claude-sonnet-4-6": {
+      "in": 3,
+      "out": 15
+    },
+    "claude-haiku-4-5-20251001": {
+      "in": 0.8,
+      "out": 4
+    }
+  }
+}

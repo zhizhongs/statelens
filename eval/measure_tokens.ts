@@ -171,11 +171,12 @@ async function runStateLens(
   }
 
   const haiku = getVlmCumulativeUsage();
+  const haikuCalls = perFrame.filter((f) => f.action === 'vlm_handled').length;
   return {
     sonnetCalls,
     sonnetInputTokens,
     sonnetOutputTokens,
-    haikuCalls: haiku.input_tokens > 0 ? 1 : 0, // Phase 1 stub returns 0
+    haikuCalls,
     haikuInputTokens: haiku.input_tokens,
     haikuOutputTokens: haiku.output_tokens,
     skippedFrames,
