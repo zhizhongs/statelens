@@ -129,13 +129,22 @@ The primary tool. Compares the current screenshot against the previous one in th
 ```typescript
 {
   name: "statelens_observe",
-  description: "Analyze a UI screenshot for changes since the last observation. Returns structured diff including whether anything changed, what text appeared/disappeared, where the change occurred, and a semantic event summary. Call this before sending a screenshot to your reasoning model to avoid wasting tokens on unchanged screens.",
+  description: "Analyze a UI screenshot for changes since the last observation. Returns structured diff including whether anything changed, what text appeared/disappeared, where the change occurred, and a semantic event summary. Call this before sending a screenshot to your reasoning model to avoid wasting tokens on unchanged screens. Provide exactly one of screenshot_path or screenshot_base64.",
   inputSchema: {
     type: "object",
     properties: {
       screenshot_path: {
         type: "string",
-        description: "Absolute path to the screenshot image file (PNG or JPEG)"
+        description: "Absolute path to the screenshot image file (PNG or JPEG). Mutually exclusive with screenshot_base64."
+      },
+      screenshot_base64: {
+        type: "string",
+        description: "Base64-encoded screenshot bytes (PNG or JPEG). Use when the agent holds the screenshot in memory and does not want to write a temp file. A 'data:image/...;base64,' prefix is tolerated. Mutually exclusive with screenshot_path."
+      },
+      mime_type: {
+        type: "string",
+        enum: ["image/png", "image/jpeg"],
+        description: "Optional MIME type hint for screenshot_base64. Informational only; sharp auto-detects the actual format."
       },
       session_id: {
         type: "string",
@@ -147,10 +156,13 @@ The primary tool. Compares the current screenshot against the previous one in th
         description: "Optional label for the action that preceded this screenshot (e.g. 'click_submit', 'type_email')"
       }
     },
-    required: ["screenshot_path"]
+    // No "required": []; validation in the handler ensures exactly one of
+    // screenshot_path / screenshot_base64 is provided.
   }
 }
 ```
+
+**Input contract:** the handler accepts either `screenshot_path` or `screenshot_base64`, never both, never neither. Supplying both or neither returns a validation error. `screenshot_path` is preserved for local tools and existing demos; `screenshot_base64` is the in-memory path for agents that capture screenshots without touching disk. See `docs/POST_PHASE3_AGENT_INTEGRATION.md` for the integration rationale.
 
 **Response:**
 
@@ -913,6 +925,9 @@ statelens/
 │   │   ├── importanceScorer.ts  # Stage 4: rule-based scoring
 │   │   ├── vlmExplainer.ts      # Stage 5: Haiku VLM call (instrumented for usage)
 │   │   └── timeline.ts          # Stage 6: session event assembly
+│   ├── adapters/                # Post-Phase-3 in-process integration layer
+│   │   ├── routeObservation.ts  # Maps ObservationResult → skip/text/vision route
+│   │   └── playwright.ts        # captureAndRoute(): Playwright-shaped reference adapter
 │   └── utils/
 │       └── image.ts             # Sharp helpers: resize, crop, dimensions
 ├── eval/
@@ -922,9 +937,12 @@ statelens/
 │   ├── screenshots/
 │   │   ├── login_flow/          # 14 frames (primary demo)
 │   │   └── checkout_flow/       # Second scenario
+│   ├── agent_loop/
+│   │   └── playwright_login.ts  # Reference agent loop using the adapter
 │   └── run.ts                   # Batch CLI processor
 ├── tests/
-│   └── pipeline/                # Unit tests per stage
+│   ├── pipeline/                # Unit tests per stage
+│   └── adapters/                # Router + Playwright adapter tests
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -1591,12 +1609,34 @@ npm install -g statelens
 ```
 
 ### Surface 2: Library Import
-For developers building custom agents in TypeScript/JavaScript who control their own loop.
+For developers building custom agents in TypeScript/JavaScript who control their own loop. This is the post-Phase-3 in-process integration path — see `docs/POST_PHASE3_AGENT_INTEGRATION.md`.
+
+Raw pipeline:
 ```typescript
-import { Observer } from 'statelens';
-const obs = new Observer();
-const result = await obs.observe(screenshotBuffer);
+import { observe } from 'statelens';
+const result = await observe(screenshotBuffer, sessionId, actionLabel);
 ```
+
+With the routing helper (recommended for agent loops):
+```typescript
+import { observe } from 'statelens';
+import { routeObservation } from 'statelens/dist/src/adapters/routeObservation.js';
+
+const observation = await observe(buffer, sessionId, actionLabel);
+const route = routeObservation(observation);
+// route.route ∈ { 'skip_vision', 'use_text_observation', 'use_full_vision' }
+```
+
+With the Playwright-shaped reference adapter (works with any Page-like object that exposes `screenshot(): Promise<Buffer>`):
+```typescript
+import { captureAndRoute } from 'statelens/dist/src/adapters/playwright.js';
+
+const { screenshot, observation, route } = await captureAndRoute(page, {
+  sessionId, actionLabel: 'click_submit',
+});
+```
+
+The router and adapter live outside `src/pipeline/` so they do not expand Person A's locked surface. The pipeline contract — `observe()`, `getTimeline()`, `resetSession()`, `getVlmCumulativeUsage()`, `resetVlmCumulativeUsage()` — is unchanged.
 
 ### Surface 3: HTTP API (Stretch Goal)
 For cross-language consumers, cloud deployment, enterprise. Any language POSTs screenshots, gets JSON back.

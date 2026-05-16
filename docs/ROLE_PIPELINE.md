@@ -20,6 +20,7 @@ tests/pipeline/*.test.ts
 ## Files You Do NOT Touch
 
 - `src/server.ts`, `src/index.ts` (CLI) — Person B
+- `src/adapters/`, `tests/adapters/` — post-Phase-3 agent integration layer (shared, mostly Person B). Lives outside `src/pipeline/` precisely so it does not expand your locked surface. See [`POST_PHASE3_AGENT_INTEGRATION.md`](./POST_PHASE3_AGENT_INTEGRATION.md).
 - `eval/`, `demo/`, `README.md` — Person B
 - `package.json` — coordinate with Person B before adding new deps
 
@@ -241,6 +242,25 @@ The headline-number moment.
 1. Run the full Cursor live demo (Person B drives) 3 times back to back. Must succeed every time.
 2. Run `npm run measure` against both scenarios. Numbers locked in `eval/results/`.
 3. Both commit + push.
+
+---
+
+## Phase 3.5: Post-Phase-3 Agent Integration (Shared, mostly Person B)
+
+After Phase 3 freezes the pipeline, the team adds an in-code integration layer so StateLens can sit between screenshot capture and the agent's VLM call without relying on a policy prompt. See [`POST_PHASE3_AGENT_INTEGRATION.md`](./POST_PHASE3_AGENT_INTEGRATION.md) for the full design.
+
+**Your locked pipeline surface does not change.** `observe()`, `getTimeline()`, `resetSession()`, `getVlmCumulativeUsage()`, `resetVlmCumulativeUsage()` all keep their existing signatures. The new layer consumes `ObservationResult` as-is.
+
+What gets added (not by you):
+- `src/adapters/routeObservation.ts` — pure function mapping `ObservationResult` to a `skip_vision | use_text_observation | use_full_vision` decision.
+- `src/adapters/playwright.ts` — structural-typing reference adapter (`captureAndRoute(page, ...)`); no hard playwright dependency.
+- `demo/agent_loop/playwright_login.ts` — reference agent loop, mocks the downstream VLM.
+- `tests/adapters/*.test.ts` — coverage including the headline assertion that `skip_vision` never invokes the downstream VLM.
+- `src/server.ts` — `statelens_observe` learns to accept `screenshot_base64` (and `mime_type`) in addition to `screenshot_path`, with exactly-one validation.
+
+What you should support if asked:
+- Stable `event_type` strings the router keys off (`invalid_screenshot`, `analysis_error`, `no_change`, `minor_change`, plus the keyframe types). If you rename one, ping Person B — the router uses these for conservative fallback to full vision.
+- Stable `keyframe` / `vlm_called` semantics in `ObservationResult`. The router treats `keyframe=true && vlm_called=true` as "StateLens summary is sufficient"; that contract is locked.
 
 ---
 
