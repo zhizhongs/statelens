@@ -1,9 +1,3 @@
-// MCP server — DESIGN.md Section 5.1
-// Person B: register the four StateLens tools and bridge to src/pipeline/index.ts.
-//
-// Tool descriptions: use the EXACT strings from DESIGN.md Section 3.
-// Those descriptions guide model tool-selection behavior — don't paraphrase.
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -28,9 +22,14 @@ server.tool(
     action_label: z.string().optional().describe('Optional label for the action that preceded this screenshot.'),
   },
   async ({ screenshot_path, session_id, action_label }) => {
-    const buffer = await readFile(screenshot_path);
-    const result = await observe(buffer, session_id, action_label);
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    try {
+      const buffer = await readFile(screenshot_path);
+      const result = await observe(buffer, session_id, action_label);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { content: [{ type: 'text', text: JSON.stringify({ error: msg }) }], isError: true };
+    }
   }
 );
 
@@ -41,8 +40,13 @@ server.tool(
     session_id: z.string().default('default'),
   },
   async ({ session_id }) => {
-    const timeline = getTimeline(session_id);
-    return { content: [{ type: 'text', text: JSON.stringify(timeline, null, 2) }] };
+    try {
+      const timeline = getTimeline(session_id);
+      return { content: [{ type: 'text', text: JSON.stringify(timeline, null, 2) }] };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { content: [{ type: 'text', text: JSON.stringify({ error: msg }) }], isError: true };
+    }
   }
 );
 
@@ -53,11 +57,21 @@ server.tool(
     before_path: z.string().describe('Path to the earlier screenshot'),
     after_path: z.string().describe('Path to the later screenshot'),
   },
-  async ({ before_path: _before, after_path }) => {
-    // TODO Person B: dedicated compare path that doesn't pollute a session.
-    const buffer = await readFile(after_path);
-    const result = await observe(buffer, `compare_${Date.now()}`);
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  async ({ before_path, after_path }) => {
+    try {
+      const [beforeBuf, afterBuf] = await Promise.all([
+        readFile(before_path),
+        readFile(after_path),
+      ]);
+      const sessionId = `__compare_${Date.now()}`;
+      await observe(beforeBuf, sessionId);
+      const result = await observe(afterBuf, sessionId);
+      resetSession(sessionId);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { content: [{ type: 'text', text: JSON.stringify({ error: msg }) }], isError: true };
+    }
   }
 );
 
@@ -68,12 +82,18 @@ server.tool(
     session_id: z.string().default('default'),
   },
   async ({ session_id }) => {
-    resetSession(session_id);
-    return { content: [{ type: 'text', text: `Session "${session_id}" reset.` }] };
+    try {
+      resetSession(session_id);
+      return { content: [{ type: 'text', text: `Session "${session_id}" reset.` }] };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { content: [{ type: 'text', text: JSON.stringify({ error: msg }) }], isError: true };
+    }
   }
 );
 
 export async function main(): Promise<void> {
+  console.error('StateLens MCP server v0.1.0 starting on stdio...');
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
