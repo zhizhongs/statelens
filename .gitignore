@@ -16,9 +16,10 @@ dist/
 # Test output
 coverage/
 
-# Eval output (keep results/ structure but ignore individual run files)
-eval/results/*.json
+# Eval output: ignore noisy per-run files, but track named baselines (phase milestones)
+eval/results/run_*.json
 !eval/results/.gitkeep
+!eval/results/phase*_baseline.json
 
 # Demo screenshots are committed (small PNGs), but ignore any large recordings
 demo/recordings/

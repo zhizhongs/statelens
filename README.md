@@ -89,22 +89,36 @@ export ANTHROPIC_API_KEY=sk-ant-...
 npm run measure
 ```
 
-Output (example):
+Measured output (12-frame login flow, real Anthropic API calls):
 
 ```
-Task: 14-frame login flow analysis
-Model: claude-sonnet-4-6
+Task: 12-frame login flow analysis
+Model: claude-sonnet-4-6 (StateLens internal: claude-haiku-4-5)
 
 Run A (baseline, raw images):
-  Input tokens: 16,847   Cost: $0.0589   Time: 28.4s
+  API calls:        12
+  Input tokens:     19,008
+  Output tokens:    462
+  Wall time:        33.2s
+  Cost:             $0.0640
 
 Run B (StateLens compression):
-  Input tokens: 3,720    Cost: $0.0093   Time: 2.6s
+  Sonnet calls:     3   (text-only summaries)
+  Haiku calls:      4   (visual-only keyframes inside StateLens)
+  Frames skipped:   5   (filtered by visual gate, zero AI calls)
+  Total input:      14,249 tokens   (71 Sonnet + 14,178 Haiku)
+  Wall time:        30.5s
+  Cost:             $0.0196
 
-Savings: 77.9% tokens, 84.2% cost, 90.8% latency
+Savings:
+  Input tokens:        25.0%
+  Cost:                69.4%
+  Sonnet input tokens: 99.6% (12 image calls → 3 text-only calls)
 ```
 
-Token counts come directly from `response.usage.input_tokens` in the Anthropic API responses. The harness includes honest accounting for Haiku tokens consumed inside StateLens.
+Token counts come directly from `response.usage.input_tokens` in the Anthropic API responses. The harness includes honest accounting for Haiku tokens consumed inside StateLens — Run B's reported total includes Haiku, so the savings claim is not a "shift to a cheaper model" trick.
+
+**Reading the numbers:** the visual gate eliminates 42% of frames entirely. Of the remaining keyframes, OCR-driven text diffs let us answer most of them with tiny text-only Sonnet calls (71 input tokens total). The remaining frames where text alone can't explain the change get a Haiku vision call. Result: the same task that cost $0.064 in raw API calls costs $0.020 routed through StateLens.
 
 ## Architecture
 

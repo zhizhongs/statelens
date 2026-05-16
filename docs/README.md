@@ -8,8 +8,11 @@ Two people, two role docs, phased work with merge checkpoints.
 | [ROLE_DISTRIBUTION.md](./ROLE_DISTRIBUTION.md) | **Person B** | MCP server, CLI, measurement harness, demo, README, pitch. Also Anthropic console. |
 | [PIPELINE_PHASE1_IMPLEMENTATION.md](./PIPELINE_PHASE1_IMPLEMENTATION.md) | **Person A** | Phase 1 implementation design for Stages 1-3 and the minimal `observe()` wiring |
 | [PIPELINE_PHASE2_IMPLEMENTATION.md](./PIPELINE_PHASE2_IMPLEMENTATION.md) | **Person A** | Phase 2 implementation design for importance scoring, selective VLM, usage accounting, and timeline assembly |
+| [DEMO_SCRIPT.md](./DEMO_SCRIPT.md) | **Person B** | Exact prompt and flow for the live Cursor MCP demo + stress-test checklist + backup plan |
 
 Shared spec: [`../DESIGN.md`](../DESIGN.md)
+
+Phase 3 baseline results: [`../eval/results/phase3_baseline.json`](../eval/results/phase3_baseline.json) — real Anthropic API token deltas.
 
 ## Phase Timeline
 
