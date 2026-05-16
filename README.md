@@ -1,42 +1,82 @@
 # StateLens
 
-> Screenshot gateway for UI agents. StateLens ships as an MCP server, an in-process routing library, and a local Anthropic-compatible proxy. **Measured 70-82% input-token reduction and 81-90% cost reduction on real Anthropic API calls, with 78-100% event-capture accuracy** across two screenshot scenarios. See [`RESULTS.md`](./RESULTS.md) for the full numbers.
+> Screenshot gateway for computer-use agents. StateLens ships as an MCP server, in-process routing library, and local Anthropic-compatible proxy. **Measured: 70-82% input-token reduction and 81-90% cost reduction** on real Anthropic API calls across two UI flows.
 
-[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-96%20passing-brightgreen.svg)](./tests)
-[![MCP](https://img.shields.io/badge/protocol-MCP-orange.svg)](https://modelcontextprotocol.io/)
+StateLens sits between a UI agent and its reasoning model. It watches screenshot streams, filters redundant frames, extracts semantic state changes, and replaces expensive image input with compact text observations when it is safe to do so.
 
-## The problem
+Use it when you are building or running screenshot-heavy browser/computer-use agents and want to stop paying for frames that did not meaningfully change.
 
-Computer-use and UI-testing agents call a vision model after every action. Most consecutive screenshots are visually identical or only differ in trivial ways. The agent still pays full-resolution image tokens to rediscover that nothing meaningful changed. Microsoft Research measured 36-56% of consecutive frames as pixel-identical in real agent traces.
-
-Existing fixes (ReVision, ShowUI, etc.) are model-internal — they require fine-tuning a specific VLM. There's no install path for end users, no observability into what was kept or dropped, and a different team has to re-implement the optimization for every model.
-
-## What StateLens does
-
-StateLens sits between the screenshot stream and the reasoning model as an **external middleware**. For each screenshot it:
-
-1. **Filters identical frames** with a perceptual hash + pixelmatch gate (zero AI calls, <50ms).
-2. **Localizes changes** with pixel diff + connected-component bounding boxes.
-3. **Extracts text changes** by OCR'ing only the changed regions (not the whole screen).
-4. **Scores importance** with a rule-based scorer that gates a tiny Haiku VLM call.
-5. **Emits a semantic event** — structured JSON with `event_summary`, `text_diff`, `changed_regions` — that an agent can reason over without ever seeing the image bytes.
-
-Result: the same screenshot-heavy task that costs $0.12 in raw Sonnet calls costs $0.01 routed through StateLens. The agent gets a readable timeline of what actually happened, not 12 base64 blobs.
-
-## How users plug it in
-
-There are three integration surfaces. Pick based on what you control.
-
-### Path A — MCP server (for editors and closed clients)
-
-For developers using **Cursor**, **Claude Code**, **Claude Desktop**, or any MCP-compatible client. Zero code changes: install the server, add it to your MCP config, give the agent a one-line policy prompt.
+## Install
 
 ```bash
-npm install -g statelens-sdk
+npm install -g statelens
 ```
 
-Add to your MCP config (`~/.cursor/mcp.json`, `~/.claude/mcp.json`, or `claude_desktop_config.json`):
+Or from source:
+
+```bash
+git clone https://github.com/zhizhongs/statelens.git
+cd statelens
+npm install
+npm run build
+npm link
+```
+
+## Use The Proxy
+
+Use the Anthropic-compatible proxy when your agent or SDK can set `ANTHROPIC_BASE_URL`. This is the most transparent integration because StateLens sits directly in the model-request path.
+
+Start StateLens:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+statelens proxy --provider anthropic --port 8443
+```
+
+Point your Anthropic SDK-based agent at it:
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:8443
+```
+
+Then run your existing agent normally.
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8443/health
+```
+
+Optional session controls:
+
+```bash
+export STATELENS_SESSION_ID=my-run
+# or send x-statelens-session-id: my-run
+```
+
+Debug endpoints:
+
+```bash
+curl http://127.0.0.1:8443/sessions/my-run/timeline
+curl -X POST http://127.0.0.1:8443/sessions/my-run/reset
+```
+
+Proxy behavior:
+
+- Targets Anthropic `/v1/messages`.
+- Detects base64 screenshot image blocks in the latest user message.
+- Forwards first frames, analysis errors, and ambiguous requests unchanged.
+- Replaces safe-to-compress screenshots with StateLens text observations.
+- Does not MITM traffic or require a custom CA certificate.
+- Does not synthesize provider responses by default.
+
+## Use MCP
+
+Use MCP when your client can discover tools and you want StateLens observations available inside the agent. MCP remains a first-class integration; the proxy is an additional wrapper around the same pipeline.
+
+### Cursor
+
+Add to `~/.cursor/mcp.json`:
 
 ```json
 {
@@ -49,281 +89,90 @@ Add to your MCP config (`~/.cursor/mcp.json`, `~/.claude/mcp.json`, or `claude_d
 }
 ```
 
-Then add this policy prompt to the agent's system / project prompt so it actually uses the tools:
+### Claude Code
 
-```text
-Before reasoning over any screenshot, call statelens_observe with the current
-screenshot and session_id.
+Add to `~/.claude/mcp.json` using the same shape.
 
-If changed=false, do not send the screenshot to a vision model. Continue from
-the previous state unless the task explicitly requires visual inspection.
+### Claude Desktop
 
-If keyframe=true and vlm_called=false, use event_summary, text_diff, and
-changed_regions as the primary observation.
+Add to `claude_desktop_config.json` using the same shape.
 
-Call statelens_timeline before summarizing the session or reporting what
-happened.
-```
+MCP caveat: tool use is voluntary. For transparent cost reduction, prefer the proxy when your SDK supports a base URL override.
 
-**Caveat:** MCP tool selection is voluntary. Closed clients can ignore a tool on any given turn. If you need guaranteed interception, use Path B or Path C.
+## Use In Process
 
-### Path B — In-process adapter (for live UI agents you control)
-
-For agents whose runtime you control: **Playwright/Puppeteer test runners with an LLM driving them, custom Anthropic SDK loops, browser/desktop automation, eval harnesses**. The decision lives in your code — no prompt-following required, no closed-client cooperation needed.
-
-This isn't just "feed StateLens prerecorded screenshots." It's a real-time middleware that sits inside a live UI automation loop: every time your agent takes an action and the page changes, StateLens decides whether the LLM needs to see anything.
+Use the TypeScript adapter when you control the agent loop.
 
 ```ts
-import { captureAndRoute } from 'statelens-sdk/adapters/playwright';
+import { captureAndRoute } from 'statelens';
 
-// Inside your agent's action loop:
-await page.click('#submit');
 const { observation, route, screenshot } = await captureAndRoute(page, {
   sessionId: 'login_flow',
-  actionLabel: 'click_submit',   // for failure detection (see below)
+  actionLabel: 'click_submit',
 });
 
 switch (route.route) {
   case 'skip_vision':
-    // Nothing meaningful changed — keep going with the prior state. Zero LLM tokens.
     break;
   case 'use_text_observation':
-    // Send the structured event to your reasoning model. Tiny prompt, cheap call.
     await reasoningModel({ text: route.context });
     break;
   case 'use_full_vision':
-    // Visual-only keyframe — pass the actual screenshot through.
     await reasoningModel({ image: screenshot });
     break;
 }
 ```
 
-The adapter accepts any object with a `screenshot(): Promise<Buffer>` method — Playwright, Puppeteer, Detox, Appium, or a hand-rolled driver. A standalone `routeObservation()` helper is also exported if you already have your own capture pipeline and just want the routing decision.
+The adapter accepts any object with `screenshot(): Promise<Buffer>`, including Playwright, Puppeteer, or your own browser/desktop driver.
 
-#### Live working demo
-
-[`demo/agent_loop/playwright_login.ts`](./demo/agent_loop/playwright_login.ts) is a complete reference: launches headless Chromium, navigates to a synthetic login page, performs real fill/click actions, and routes every observation through StateLens.
-
-```bash
-npm install --save-dev playwright
-npx playwright install chromium
-npm run build
-node dist/demo/agent_loop/playwright_login.js
-```
-
-Sample output:
-
-```
-[TEXT  ] navigate_login         event=session_start       score=1.00
-           context:
-             First screenshot in session
-[SKIP  ] idle_recapture         event=no_change           score=0.00
-           reason: visual gate filtered (changed: false)
-[TEXT  ] type_email             event=text_appeared       score=0.40
-           context:
-             Text appeared: "user@example.com"
-[TEXT  ] type_password          event=text_appeared       score=0.40
-           context:
-             Text appeared: "••••••"
-[VISION] submit_bad_password    event=error_appeared      score=0.80
-           reason: high importance + visual change requires VLM
-    [mock VLM] would send 12873 byte screenshot with prompt: "Red error banner appeared: Invalid password"
-
-Mock VLM calls actually made: 1
-```
-
-5 agent actions → 1 VLM call. That's the value StateLens adds to a live workflow.
-
-### Path C — Anthropic-compatible proxy (for SDK-based agents you can point at a different baseURL)
-
-For agents whose runtime you **don't** control directly but whose Anthropic SDK client exposes a `baseURL` override — Claude Code, Cursor agents, custom binaries, anything built on `@anthropic-ai/sdk` that lets you swap the endpoint. Boot the proxy locally, point your client at it, and StateLens intercepts screenshot image blocks in `POST /v1/messages` requests before they reach Anthropic.
-
-```bash
-npm run build
-statelens proxy --provider anthropic --port 8443
-export ANTHROPIC_BASE_URL=http://localhost:8443
-```
-
-The gateway receives Anthropic-compatible `POST /v1/messages` requests, detects screenshot image blocks, runs the existing StateLens pipeline, and either:
-
-- forwards the request unchanged (full visual grounding needed),
-- replaces the image block with a text observation and forwards (the pipeline has enough context),
-- replaces the image block with a "no meaningful change" stub and forwards (visual gate filtered),
-- conservatively forwards unchanged on any analysis error.
-
-Hard short-circuit responses are intentionally not the default. See [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md) for the request rewriting rules, session handling, and the recursion guard that keeps StateLens's own internal Haiku calls from looping through the proxy.
-
-## MCP tools
-
-| Tool | What it does |
-|---|---|
-| `statelens_observe` | Analyze a screenshot for changes. Returns `{changed, keyframe, event_summary, text_diff, changed_regions, vlm_called}`. Accepts `screenshot_path` (file) or `screenshot_base64` (in-memory). |
-| `statelens_timeline` | Returns the full session event log with `vlm_calls_made` / `vlm_calls_saved`. |
-| `statelens_compare` | Stateless diff between two screenshots. No session required. |
-| `statelens_reset` | Clear a session's stored state. |
-
-## Failure detection
-
-StateLens can flag when an agent action that should have produced a UI change didn't — useful for catching stuck buttons, broken flows, and silent failures in long automation runs.
-
-Pass an `action_label` to `statelens_observe`:
+The lower-level routing helper is also available:
 
 ```ts
-await observe(screenshot, sessionId, 'click_submit');
+import { observe, routeObservation } from 'statelens';
+
+const observation = await observe(screenshotBuffer, 'session-id', 'click_submit');
+const route = routeObservation(observation);
 ```
 
-The pipeline classifies labels as `mutating` (`click`, `submit`, `login`, `checkout`, `delete`, ...), `passive` (`hover`, `scroll`, `wait`, ...), or unknown. When a mutating action produces no visual change, the observation is tagged with an `action_failed` event type instead of `no_change`. See [`docs/PIPELINE_PHASE4_IMPLEMENTATION.md`](./docs/PIPELINE_PHASE4_IMPLEMENTATION.md) for the classifier rules.
+## Integration Surfaces
 
-## Demo scenarios
+| Surface | Status | Best for |
+|---|---|---|
+| Local API proxy (`statelens proxy`) | Built for Anthropic | SDK-based agents or binaries that support `baseURL` / endpoint overrides |
+| MCP server (`statelens serve`) | Built | Cursor, Claude Code, Claude Desktop, and agents that can choose to call tools |
+| In-process routing helper | Built | Custom Playwright/Puppeteer/browser-use style loops |
+| SDK middleware | Planned | Apps that instantiate the Anthropic/OpenAI SDK in code and can wrap the client |
 
-The repo ships with two prerecorded screenshot sequences under `demo/screenshots/`. Both are real captures, not synthetic — they exercise the full pipeline against actual web UIs.
+All surfaces use the same pipeline:
 
-**`login_flow/` — 12 frames, GitHub authentication**
-A user lands on `github.com/login`, types credentials, submits, hits a 2FA challenge, gets a "Sign-in request timed out" error, switches to the authenticator-app code path, types the 6-digit code, and lands on their dashboard. This flow has natural redundancy (cursor blinks, identical-frame moments between actions), so the visual gate filters 5 of 12 frames.
-
-**`checkout_flow/` — 10 frames, Zara checkout**
-A user starts at a Zara cart (`CONTINUE (2)`), fills a shipping form (name, address, ZIP, email), picks a delivery method (standard / express / store pickup), reviews the order summary, and lands on the payment method picker showing Credit/Debit, PayPal, Afterpay, Apple Pay, Google Pay options. Every frame is meaningfully different — zero gate-filterable redundancy. This flow stress-tests the pipeline on form-heavy UIs with stylized fonts (Zara's UI mis-OCRs in places), which is why the Phase 4 tuning was needed.
-
-The two scenarios were chosen to be **adversarial against each other**: login has lots of redundant frames and clear text changes, checkout has zero redundancy and tricky OCR. If StateLens saves 80%+ tokens on both, the savings aren't a quirk of one well-suited flow.
-
-## Headline measurements
-
-Real Anthropic API token counts, two screenshot scenarios, baseline = raw screenshots through Sonnet with a fair "what changed" prompt (prev + curr image per frame):
-
-| Scenario | Frames | Token reduction | Cost reduction | Accuracy (lenient) | Accuracy (strict) |
-|---|---|---|---|---|---|
-| **Login** (GitHub sign-in → 2FA → dashboard) | 12 | **81.9%** | **90.1%** | **100.0%** | 81.8% |
-| **Checkout** (Zara cart → shipping → payment) | 10 | **69.9%** | **81.2%** | **77.8%** | 33.3% |
-
-Accuracy is judged by Claude Haiku against the raw-image baseline (does StateLens's compressed signal describe the same UI event?). `skipped` frames count as agreement; first frame of each session is excluded. Full per-frame verdicts under [`eval/results/phase4_*.accuracy.json`](./eval/results/).
-
-Token counts come directly from `response.usage.input_tokens` in the Anthropic API responses. **The harness includes honest accounting for Haiku tokens consumed inside StateLens** — Run B's reported total includes Haiku, so the savings claim is not a "shift to a cheaper model" trick.
-
-Reproduce locally:
-
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-npm run measure                                       # login flow
-npm run measure -- demo/screenshots/checkout_flow     # checkout flow
-node dist/eval/accuracy_check.js eval/results/phase4_login_tuned.json
+```text
+screenshot
+  -> visual gate
+  -> spatial diff
+  -> OCR diff
+  -> importance score
+  -> optional small VLM explanation
+  -> text observation, full-vision fallback, or no-change route
 ```
 
-### What the harness output looks like
+## Results
 
-The harness sends the same 12-frame login sequence to Claude Sonnet twice — once raw (Run A) and once routed through StateLens (Run B) — and prints the actual API token counts.
+Measured with real Anthropic API token counts:
 
-**Login flow (12 frames):**
+| Scenario | Frames | Token reduction | Cost reduction | Accuracy (lenient) |
+|---|---:|---:|---:|---:|
+| Login flow | 12 | 81.9% | 90.1% | 100.0% |
+| Checkout flow | 10 | 69.9% | 81.2% | 77.8% |
 
-```
-Task: 12-frame login flow analysis
-Model: claude-sonnet-4-6 (StateLens internal: claude-haiku-4-5)
+The measurement harness includes internal Haiku usage, so the savings are not hidden by shifting work to a cheaper model.
 
-Run A (baseline, prev+curr image to Sonnet per frame, asks "what changed"):
-  API calls:        12
-  Input tokens:     36,255
-  Cost:             $0.1162
+See [`RESULTS.md`](./RESULTS.md) for the full methodology and [`docs/DEMO_AND_EVAL.md`](./docs/DEMO_AND_EVAL.md) for demo and reproduction commands.
 
-Run B (StateLens compression):
-  Sonnet calls:     2   (text-only summaries, ~25 input tokens each)
-  Haiku calls:      5   (visual-only keyframes, downscaled to 768px)
-  Frames skipped:   5   (filtered by visual gate, zero AI calls)
-  Total input:      6,562 tokens   (49 Sonnet + 6,513 Haiku)
-  Cost:             $0.0115
+## Docs
 
-Savings:
-  Input tokens:        81.9%
-  Cost:                90.1%
-  Sonnet image tokens: 100%  (12 image calls → 0)
-```
-
-**Checkout flow (10 frames, form-heavy, zero gate-filterable frames):**
-
-```
-Task: 10-frame checkout flow analysis
-Model: claude-sonnet-4-6 (StateLens internal: claude-haiku-4-5)
-
-Run A (baseline, prev+curr image to Sonnet per frame):
-  API calls:        10
-  Input tokens:     29,951
-  Cost:             $0.0988
-
-Run B (StateLens compression):
-  Sonnet calls:     4   (text-only summaries)
-  Haiku calls:      6   (visual-only keyframes, Phase 4 tuning pushed
-                         form-fill frames here for accuracy)
-  Frames skipped:   0   (no two consecutive frames are pixel-redundant)
-  Total input:      9,025 tokens   (128 Sonnet + 8,897 Haiku)
-  Cost:             $0.0186
-
-Savings:
-  Input tokens:        69.9%
-  Cost:                81.2%
-```
-
-**Reading the numbers:** on login, the visual gate eliminates 42% of frames entirely. Of the remaining keyframes, OCR-driven text diffs answer most with tiny text-only Sonnet calls; the rest go to Haiku on 768px-downscaled images (Anthropic prices images by tile count, which scales with resolution). On checkout, the visual gate doesn't help because every frame differs — savings come from routing form-fills and small transitions through cheap Haiku calls instead of full-resolution Sonnet image tokens.
-
-Full methodology and evolution: [`RESULTS.md`](./RESULTS.md).
-
-## Architecture
-
-```
-Input surface
-  - MCP tool call (Path A)
-  - In-process adapter (Path B)
-  - Anthropic proxy /v1/messages (Path C)
-       │
-       ▼
-[Stage 1] Cheap Visual Gate          ──  hash + pixelmatch, <5ms, zero AI
-       │
-       │  (if filtered: return changed: false, 0 tokens)
-       ▼
-[Stage 2] Spatial Diff Localization  ──  pixel diff + bounding boxes, <10ms
-       │
-       ▼
-[Stage 3] OCR Text Diff              ──  tesseract.js on cropped regions only, <200ms
-       │
-       ▼
-[Stage 4] Importance Scorer          ──  rule-based + OCR-reliability check
-       │
-       ▼
-[Stage 5] Selective VLM Explainer    ──  Haiku, downscaled images, only for visual-only keyframes
-       │
-       ▼
-[Stage 6] Timeline Assembly          ──  session event log + cost metrics
-       │
-       ▼
-Structured observation (Paths A/B) or rewritten model request (Path C)
-```
-
-See [`DESIGN.md`](./DESIGN.md) Section 4 for per-stage implementation details and [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md) for the Path C gateway internals.
-
-## Project layout
-
-```
-src/pipeline/        Pipeline stages (visual gate, spatial diff, OCR, scorer, VLM, timeline)
-src/server.ts        MCP server (stdio transport, 4 tools)
-src/adapters/        In-process adapters (Playwright, generic route helper)
-src/gateway/         Shared request-rewriting layer (image extraction, routing policy, session)
-src/proxy/           Local Anthropic-compatible HTTP proxy
-src/index.ts         CLI: serve | proxy | run | measure | live-demo | live-eval
-eval/                A/B token measurement harness + Haiku accuracy judge
-demo/                Prerecorded screenshot sequences (login, checkout) + live computer-use loop
-tests/               Vitest unit tests
-docs/                Design docs and implementation notes
-```
-
-## Development
-
-```bash
-git clone https://github.com/zhizhongs/statelens.git
-cd statelens
-npm install
-npm run build       # production build to ./dist
-npm test            # vitest run
-npm run dev         # tsc --watch
-```
-
-`ANTHROPIC_API_KEY` is required to run the VLM stage and the measurement harness. Put it in `.env` (gitignored).
+- [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md) — proxy implementation details
+- [`DESIGN.md`](./DESIGN.md) — architecture and product direction
+- [`docs/DEMO_AND_EVAL.md`](./docs/DEMO_AND_EVAL.md) — demo, eval, and measurement commands
 
 ## License
 

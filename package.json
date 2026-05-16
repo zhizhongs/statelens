@@ -6,7 +6,26 @@
   "bin": {
     "statelens": "./dist/src/index.js"
   },
-  "main": "./dist/src/pipeline/index.js",
+  "main": "./dist/src/library.js",
+  "types": "./dist/src/library.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/library.d.ts",
+      "import": "./dist/src/library.js"
+    },
+    "./playwright": {
+      "types": "./dist/src/adapters/playwright.d.ts",
+      "import": "./dist/src/adapters/playwright.js"
+    },
+    "./adapters": {
+      "types": "./dist/src/adapters/routeObservation.d.ts",
+      "import": "./dist/src/adapters/routeObservation.js"
+    },
+    "./pipeline": {
+      "types": "./dist/src/pipeline/index.d.ts",
+      "import": "./dist/src/pipeline/index.js"
+    }
+  },
   "files": [
     "dist",
     "docs",
