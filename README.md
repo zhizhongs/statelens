@@ -67,34 +67,42 @@ happened.
 
 **Caveat:** MCP tool selection is voluntary. Closed clients can ignore a tool on any given turn. If you need guaranteed interception, use Path B.
 
-### Path B — In-process adapter (for custom agents you control)
+### Path B — In-process adapter (for live UI agents you control)
 
-For agents whose runtime you control (Playwright/Puppeteer test runners, custom Anthropic SDK loops, eval harnesses). The decision lives in your code — no prompt-following required.
+For agents whose runtime you control: **Playwright/Puppeteer test runners with an LLM driving them, custom Anthropic SDK loops, browser/desktop automation, eval harnesses**. The decision lives in your code — no prompt-following required, no closed-client cooperation needed.
+
+This isn't just "feed StateLens prerecorded screenshots." It's a real-time middleware that sits inside a live UI automation loop: every time your agent takes an action and the page changes, StateLens decides whether the LLM needs to see anything.
 
 ```ts
 import { captureAndRoute } from 'statelens/dist/src/adapters/playwright.js';
 
+// Inside your agent's action loop:
+await page.click('#submit');
 const { observation, route, screenshot } = await captureAndRoute(page, {
   sessionId: 'login_flow',
-  actionLabel: 'click_submit',
+  actionLabel: 'click_submit',   // for failure detection (see below)
 });
 
 switch (route.route) {
   case 'skip_vision':
-    // No meaningful change — no API call.
+    // Nothing meaningful changed — keep going with the prior state. Zero LLM tokens.
     break;
   case 'use_text_observation':
+    // Send the structured event to your reasoning model. Tiny prompt, cheap call.
     await reasoningModel({ text: route.context });
     break;
   case 'use_full_vision':
+    // Visual-only keyframe — pass the actual screenshot through.
     await reasoningModel({ image: screenshot });
     break;
 }
 ```
 
-The adapter accepts any object with a `screenshot(): Promise<Buffer>` method — Playwright, Puppeteer, or your own driver all work. A standalone `routeObservation()` helper is also exported if you already have your own capture pipeline.
+The adapter accepts any object with a `screenshot(): Promise<Buffer>` method — Playwright, Puppeteer, Detox, Appium, or a hand-rolled driver. A standalone `routeObservation()` helper is also exported if you already have your own capture pipeline and just want the routing decision.
 
-Reference demo at [`demo/agent_loop/playwright_login.ts`](./demo/agent_loop/playwright_login.ts):
+#### Live working demo
+
+[`demo/agent_loop/playwright_login.ts`](./demo/agent_loop/playwright_login.ts) is a complete reference: launches headless Chromium, navigates to a synthetic login page, performs real fill/click actions, and routes every observation through StateLens.
 
 ```bash
 npm install --save-dev playwright
@@ -102,6 +110,29 @@ npx playwright install chromium
 npm run build
 node dist/demo/agent_loop/playwright_login.js
 ```
+
+Sample output:
+
+```
+[TEXT  ] navigate_login         event=session_start       score=1.00
+           context:
+             First screenshot in session
+[SKIP  ] idle_recapture         event=no_change           score=0.00
+           reason: visual gate filtered (changed: false)
+[TEXT  ] type_email             event=text_appeared       score=0.40
+           context:
+             Text appeared: "user@example.com"
+[TEXT  ] type_password          event=text_appeared       score=0.40
+           context:
+             Text appeared: "••••••"
+[VISION] submit_bad_password    event=error_appeared      score=0.80
+           reason: high importance + visual change requires VLM
+    [mock VLM] would send 12873 byte screenshot with prompt: "Red error banner appeared: Invalid password"
+
+Mock VLM calls actually made: 1
+```
+
+5 agent actions → 1 VLM call. That's the value StateLens adds to a live workflow.
 
 ## MCP tools
 
