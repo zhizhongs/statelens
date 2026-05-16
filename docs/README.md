@@ -8,6 +8,7 @@ Two people, two role docs, phased work with merge checkpoints.
 | [ROLE_DISTRIBUTION.md](./ROLE_DISTRIBUTION.md) | **Person B** | MCP server, CLI, measurement harness, demo, README, pitch. Also Anthropic console. |
 | [PIPELINE_PHASE1_IMPLEMENTATION.md](./PIPELINE_PHASE1_IMPLEMENTATION.md) | **Person A** | Phase 1 implementation design for Stages 1-3 and the minimal `observe()` wiring |
 | [PIPELINE_PHASE2_IMPLEMENTATION.md](./PIPELINE_PHASE2_IMPLEMENTATION.md) | **Person A** | Phase 2 implementation design for importance scoring, selective VLM, usage accounting, and timeline assembly |
+| [POST_PHASE3_AGENT_INTEGRATION.md](./POST_PHASE3_AGENT_INTEGRATION.md) | **Shared** | Supplementary design for integrating the completed Phase 3 pipeline into real computer-use agent loops |
 
 Shared spec: [`../DESIGN.md`](../DESIGN.md)
 
