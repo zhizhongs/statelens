@@ -19,12 +19,16 @@ switch (command) {
   case 'measure':
     import('../eval/measure_tokens.js').then((m) => m.main());
     break;
+  case 'live-demo':
+    import('../demo/agent_loop/playwright_login.js');
+    break;
   default:
     console.log('StateLens CLI');
     console.log('');
     console.log('Usage:');
     console.log('  statelens serve              Start MCP server on stdio');
     console.log('  statelens run <dir>          Batch process a screenshot directory');
+    console.log('  statelens live-demo          Run live computer-use agent loop demo');
     console.log('  statelens measure            Run A/B token measurement harness');
     console.log('');
     console.log('See DESIGN.md for details.');

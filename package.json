@@ -17,6 +17,7 @@
     "build": "tsc",
     "serve": "node dist/src/server.js",
     "run": "node dist/demo/run.js",
+    "demo:computer-use": "node dist/demo/agent_loop/playwright_login.js",
     "measure": "node dist/eval/measure_tokens.js",
     "test": "vitest run",
     "test:watch": "vitest",

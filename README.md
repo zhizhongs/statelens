@@ -62,7 +62,23 @@ Add to `claude_desktop_config.json` (same shape as above).
 
 ## Quickstart
 
-Once configured, ask your editor's agent:
+For the live demo path, run the computer-use-style agent loop. It drives a
+browser, captures fresh screenshots after each action, routes them through
+StateLens, and prints the saved-token estimate at the end.
+
+```bash
+npm run build
+npm run demo:computer-use
+```
+
+The demo requires Playwright as an optional runtime dependency:
+
+```bash
+npm install --save-dev playwright
+npx playwright install chromium
+```
+
+Folder replay is still available as a fallback or regression check:
 
 ```
 Use statelens_observe to walk through the screenshots in ./demo/screenshots/login_flow/
@@ -104,7 +120,8 @@ If event_type is invalid_screenshot or analysis_error, fall back to normal
 screenshot reasoning.
 
 Call statelens_timeline before summarizing the session or reporting what
-happened.
+happened. Include total_screenshots, vlm_calls_saved, reduction_pct, and
+estimated_tokens_saved in the final answer.
 ```
 
 ### Known limitations
@@ -138,16 +155,18 @@ switch (route.route) {
 }
 ```
 
-The adapter has no hard dependency on Playwright — it accepts any object with `screenshot(): Promise<Buffer>`, which means Puppeteer, Playwright, or your own browser/desktop driver all work. The reference demo is at [`demo/agent_loop/playwright_login.ts`](./demo/agent_loop/playwright_login.ts) and requires Playwright as an optional runtime dep:
+The adapter has no hard dependency on Playwright — it accepts any object with `screenshot(): Promise<Buffer>`, which means Puppeteer, Playwright, or your own browser/desktop driver all work. The reference live computer-use demo is at [`demo/agent_loop/playwright_login.ts`](./demo/agent_loop/playwright_login.ts) and requires Playwright as an optional runtime dep:
 
 ```bash
 npm install --save-dev playwright
 npx playwright install chromium
 npm run build
-node dist/demo/agent_loop/playwright_login.js
+npm run demo:computer-use
 ```
 
-The routing helper [`routeObservation()`](./src/adapters/routeObservation.ts) is also exposed standalone if you already have your own capture pipeline and just want the decision.
+At the end it reports both route-level downstream savings (full screenshot calls avoided and estimated downstream input tokens saved) and the StateLens timeline accounting (`vlm_calls_saved`, `reduction_pct`, `estimated_tokens_saved`).
+
+The routing helper [`routeObservation()`](./src/adapters/routeObservation.ts) is also exposed standalone if you already have your own capture pipeline and just want the decision. [`estimateRouteSavings()`](./src/adapters/routeObservation.ts) turns a list of route decisions into the same saved-token summary used by the live demo.
 
 ## Measuring Savings
 

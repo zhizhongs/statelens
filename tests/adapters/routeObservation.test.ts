@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { routeObservation } from '../../src/adapters/routeObservation.js';
+import { estimateRouteSavings, routeObservation } from '../../src/adapters/routeObservation.js';
 import type { ObservationResult } from '../../src/pipeline/index.js';
 
 function obs(overrides: Partial<ObservationResult> = {}): ObservationResult {
@@ -92,5 +92,21 @@ describe('routeObservation', () => {
     const o = obs({ changed: false, keyframe: false, event_type: 'no_change' });
     const result = routeObservation(o);
     expect(result.observation).toBe(o);
+  });
+
+  it('estimates downstream screenshot tokens saved from route decisions', () => {
+    const routes = [
+      routeObservation(obs({ changed: false, keyframe: false, event_type: 'no_change' })),
+      routeObservation(obs({ event_type: 'text_appeared', text_diff: { added: ['Hi'], removed: [] } })),
+      routeObservation(obs({ event_type: 'analysis_error' })),
+    ];
+
+    expect(estimateRouteSavings(routes, 1000)).toEqual({
+      total_observations: 3,
+      downstream_vision_calls: 1,
+      downstream_vision_calls_saved: 2,
+      estimated_downstream_input_tokens_saved: 2000,
+      assumed_tokens_per_screenshot: 1000,
+    });
   });
 });

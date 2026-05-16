@@ -5,6 +5,8 @@
 
 import type { ObservationResult } from '../pipeline/index.js';
 
+export const DEFAULT_SCREENSHOT_INPUT_TOKEN_ESTIMATE = 1200;
+
 export type ObservationRoute =
   | {
       route: 'skip_vision';
@@ -21,6 +23,14 @@ export type ObservationRoute =
       reason: string;
       observation: ObservationResult;
     };
+
+export interface RouteSavingsEstimate {
+  total_observations: number;
+  downstream_vision_calls: number;
+  downstream_vision_calls_saved: number;
+  estimated_downstream_input_tokens_saved: number;
+  assumed_tokens_per_screenshot: number;
+}
 
 function formatTextContext(observation: ObservationResult): string {
   const parts: string[] = [];
@@ -83,5 +93,20 @@ export function routeObservation(observation: ObservationResult): ObservationRou
     route: 'use_text_observation',
     context: formatTextContext(observation),
     observation,
+  };
+}
+
+export function estimateRouteSavings(
+  routes: ObservationRoute[],
+  tokensPerScreenshot: number = DEFAULT_SCREENSHOT_INPUT_TOKEN_ESTIMATE
+): RouteSavingsEstimate {
+  const downstreamVisionCalls = routes.filter((route) => route.route === 'use_full_vision').length;
+  const downstreamVisionCallsSaved = routes.length - downstreamVisionCalls;
+  return {
+    total_observations: routes.length,
+    downstream_vision_calls: downstreamVisionCalls,
+    downstream_vision_calls_saved: downstreamVisionCallsSaved,
+    estimated_downstream_input_tokens_saved: downstreamVisionCallsSaved * tokensPerScreenshot,
+    assumed_tokens_per_screenshot: tokensPerScreenshot,
   };
 }
