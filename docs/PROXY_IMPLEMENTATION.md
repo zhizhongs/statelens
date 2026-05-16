@@ -110,7 +110,7 @@ Update these files:
 src/index.ts                  Add `proxy` command
 src/pipeline/vlmExplainer.ts  Add internal upstream override
 package.json                  Add `proxy` script only if useful for dev
-README.md                     Keep proxy marked planned until implemented
+README.md                     Mark Anthropic proxy support as implemented
 ```
 
 Do not modify:

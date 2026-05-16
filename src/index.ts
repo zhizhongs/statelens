@@ -7,6 +7,9 @@ switch (command) {
   case 'serve':
     import('./server.js');
     break;
+  case 'proxy':
+    import('./proxy/anthropic.js').then((m) => m.main(process.argv.slice(3)));
+    break;
   case 'run': {
     const dir = process.argv[3];
     if (!dir) {
@@ -30,6 +33,7 @@ switch (command) {
     console.log('');
     console.log('Usage:');
     console.log('  statelens serve              Start MCP server on stdio');
+    console.log('  statelens proxy              Start local Anthropic-compatible proxy');
     console.log('  statelens run <dir>          Batch process a screenshot directory');
     console.log('  statelens live-demo          Run live computer-use agent loop demo');
     console.log('  statelens live-eval          Capture live demo and run efficiency + accuracy eval');

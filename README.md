@@ -1,16 +1,16 @@
 # StateLens
 
-> Screenshot gateway for computer-use agents. StateLens ships today as an MCP server and in-process routing library, with a proxy/gateway path planned next. **Measured: 70-82% input-token reduction, 81-90% cost reduction on real Anthropic API calls, with 78-100% event-capture accuracy** across two scenarios. See [`RESULTS.md`](./RESULTS.md) for the full numbers.
+> Screenshot gateway for computer-use agents. StateLens ships as an MCP server, in-process routing library, and local Anthropic-compatible proxy. **Measured: 70-82% input-token reduction, 81-90% cost reduction on real Anthropic API calls, with 78-100% event-capture accuracy** across two scenarios. See [`RESULTS.md`](./RESULTS.md) for the full numbers.
 
 StateLens sits between a UI agent and its reasoning model. It watches a stream of screenshots, filters out redundant frames cheaply, extracts semantic state changes, and returns a structured observation. The agent receives a compressed, human-readable diff instead of raw pixels.
 
-Today it works with **Cursor**, **Claude Code**, **Claude Desktop**, any MCP-compatible client, and custom agent loops that can call the TypeScript routing helper. The next delivery surface is a local SDK/proxy gateway for agents that send screenshots through configurable model SDKs.
+Today it works with **Cursor**, **Claude Code**, **Claude Desktop**, any MCP-compatible client, custom agent loops that can call the TypeScript routing helper, and SDK-based agents that can set an Anthropic `baseURL`.
 
 See [`DESIGN.md`](./DESIGN.md) for the full design document.
 
 ## Status
 
-Working MCP server, pipeline, Playwright-shaped adapter, and measurement harness. The proxy/gateway integration described below is intentionally a design target, not a shipped command yet. See [`DESIGN.md`](./DESIGN.md) for the current architecture and gateway roadmap.
+Working MCP server, pipeline, Playwright-shaped adapter, local Anthropic-compatible proxy, and measurement harness. See [`DESIGN.md`](./DESIGN.md) for the current architecture and gateway roadmap.
 
 ## For the build team
 
@@ -71,18 +71,19 @@ StateLens has one core pipeline and multiple delivery surfaces:
 | MCP server (`statelens serve`) | Built | Cursor, Claude Code, Claude Desktop, and agents that can choose to call tools |
 | In-process routing helper | Built | Custom Playwright/Puppeteer/browser-use style loops where you control screenshot capture |
 | SDK middleware | Planned | Apps that instantiate the Anthropic/OpenAI SDK in code and can wrap the client |
-| Local API proxy/gateway | Planned | SDK-based agents or binaries that support `baseURL` / endpoint overrides |
+| Local API proxy/gateway | Built for Anthropic | SDK-based agents or binaries that support `baseURL` / endpoint overrides |
 
 The MCP server asks the agent to call `statelens_observe`. The proxy/gateway form sits in the model-request path and can gate screenshots even when the agent loop itself was not written to call an MCP tool.
 
-Planned proxy shape:
+Proxy usage:
 
 ```bash
+npm run build
 statelens proxy --provider anthropic --port 8443
 export ANTHROPIC_BASE_URL=http://localhost:8443
 ```
 
-The gateway would receive Anthropic-compatible `POST /v1/messages` requests, detect screenshot image blocks, run the existing StateLens pipeline, and then either forward the request unchanged, strip image blocks and inject a text observation, or conservatively forward unchanged on analysis errors. Hard short-circuit responses are an opt-in mode, not the default.
+The gateway receives Anthropic-compatible `POST /v1/messages` requests, detects screenshot image blocks, runs the existing StateLens pipeline, and then either forwards the request unchanged, strips image blocks and injects a text observation, or conservatively forwards unchanged on analysis errors. Hard short-circuit responses are intentionally not the default.
 
 See [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md) for the implementation plan: file layout, request rewriting rules, session handling, upstream forwarding, tests, and rollout milestones.
 
@@ -154,7 +155,7 @@ estimated_tokens_saved in the final answer.
 
 - Compliance is voluntary: a closed client may skip the tool on any given turn.
 - Token accounting is approximate: we only see calls the agent actually makes.
-- For reliable interception today, use the in-process adapter path below. For SDK-based agents that expose a base URL override, use the planned proxy/gateway path once it ships.
+- For reliable interception today, use the in-process adapter path below or the Anthropic-compatible proxy when the SDK exposes a base URL override.
 
 ## In-Process Agent Integration (Custom Agents, Demos, Eval Harnesses)
 
@@ -260,7 +261,7 @@ Token counts come directly from `response.usage.input_tokens` in the Anthropic A
 Input Surface
   - MCP tool call
   - In-process adapter
-  - Planned SDK/proxy gateway
+  - SDK/proxy gateway
        |
        v
 [Stage 1] Cheap Visual Gate          <-- hash + pixelmatch, <5ms
@@ -285,18 +286,18 @@ Input Surface
 Structured observation or rewritten model request
 ```
 
-See [`DESIGN.md`](./DESIGN.md) Section 4 for implementation details of each stage and Section 5.5 for the planned local gateway.
+See [`DESIGN.md`](./DESIGN.md) Section 4 for implementation details of each stage and Section 5.5 for the local gateway.
 
 ## Project Structure
 
 ```
 src/pipeline/        Pure TypeScript library (Person A owns)
 src/server.ts        MCP server (Person B owns)
-src/index.ts         CLI entry: serve | run | measure | proxy (planned)
+src/index.ts         CLI entry: serve | run | measure | proxy
 src/adapters/        Built in-process routing helpers
-src/gateway/         Planned request rewriting layer
+src/gateway/         Request rewriting layer
 src/middleware/      Planned SDK wrappers
-src/proxy/           Planned local API gateways
+src/proxy/           Local API gateways
 eval/                Token measurement harness — primary demo artifact
 demo/                Live computer-use demo + prerecorded screenshot sequences
 tests/               Vitest unit tests

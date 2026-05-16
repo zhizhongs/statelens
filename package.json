@@ -1,7 +1,7 @@
 {
   "name": "statelens",
   "version": "0.1.0",
-  "description": "Open-source MCP server for UI agent observation compression. Filters redundant screenshots, extracts semantic state changes, cuts VLM calls by 85%.",
+  "description": "Screenshot gateway for UI agents. Filters redundant screenshots, extracts semantic state changes, and cuts vision-token spend.",
   "type": "module",
   "bin": {
     "statelens": "./dist/src/index.js"
@@ -9,6 +9,7 @@
   "main": "./dist/src/pipeline/index.js",
   "files": [
     "dist",
+    "docs",
     "README.md",
     "DESIGN.md",
     "LICENSE"
@@ -16,6 +17,7 @@
   "scripts": {
     "build": "tsc",
     "serve": "node dist/src/server.js",
+    "proxy": "node dist/src/index.js proxy",
     "run": "node dist/demo/run.js",
     "demo:computer-use": "node dist/demo/agent_loop/playwright_login.js",
     "measure": "node dist/eval/measure_tokens.js",

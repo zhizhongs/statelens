@@ -27,7 +27,7 @@ The core pipeline is unchanged across delivery surfaces. What changes is the int
 | MCP server | Built | Agent voluntarily calls `statelens_observe` before vision reasoning |
 | In-process adapter | Built | Developer calls `observe()` / `routeObservation()` inside their agent loop |
 | SDK middleware | Planned | Wrapper intercepts `client.messages.create()` in-process |
-| Local API proxy/gateway | Planned | SDK sends `POST /v1/messages` to StateLens via `ANTHROPIC_BASE_URL` |
+| Local API proxy/gateway | Built for Anthropic | SDK sends `POST /v1/messages` to StateLens via `ANTHROPIC_BASE_URL` |
 
 The MCP behavior is not deprecated. It remains the right path for tool-aware clients and demos. The gateway path exists because MCP cannot force a closed or semi-closed agent loop to consult a tool before sending screenshots to its model.
 
@@ -328,7 +328,7 @@ The core pipeline is identical regardless of whether StateLens is consumed as an
 Input surface
   - MCP Tool Call (statelens_observe)
   - In-process adapter call
-  - Planned SDK middleware / proxy request
+  - SDK middleware / proxy request
        |
        v
 [Stage 1] Cheap Visual Gate          <-- pHash + pixelmatch, <5ms, no GPU
@@ -952,7 +952,7 @@ export function resetSession(sessionId: string) {
 
 ### 5.3 Shared Routing Contract
 
-All delivery surfaces use the same pipeline and route decision. MCP returns the raw `ObservationResult` because the agent is responsible for deciding how to use the tool result. In-process adapters and the planned gateway additionally call `routeObservation()` to turn the observation into a model-request policy.
+All delivery surfaces use the same pipeline and route decision. MCP returns the raw `ObservationResult` because the agent is responsible for deciding how to use the tool result. In-process adapters and the gateway additionally call `routeObservation()` to turn the observation into a model-request policy.
 
 ```typescript
 type ObservationRoute =
@@ -1005,7 +1005,7 @@ Wrapper behavior:
 
 The wrapper must preserve SDK behavior outside screenshot-bearing requests: streaming, retries, headers, beta flags, tool definitions, system prompts, and non-image messages should pass through unchanged.
 
-### 5.5 Planned Local API Gateway
+### 5.5 Local API Gateway
 
 The gateway version is for agents or binaries that do not expose their SDK instance but do let the user override the API endpoint.
 
@@ -1121,7 +1121,7 @@ The gateway must not change the MCP server's tool definitions or behavior. It im
 ```
 statelens/
 ├── src/
-│   ├── index.ts                 # CLI entry: serve | run <dir> | measure | proxy (planned)
+│   ├── index.ts                 # CLI entry: serve | run <dir> | measure | proxy
 │   ├── server.ts                # MCP server: tool definitions + handlers
 │   ├── pipeline/
 │   │   ├── index.ts             # Pipeline orchestrator: observe(), getTimeline()
@@ -1134,13 +1134,13 @@ statelens/
 │   ├── adapters/                # Post-Phase-3 in-process integration layer
 │   │   ├── routeObservation.ts  # Maps ObservationResult → skip/text/vision route
 │   │   └── playwright.ts        # captureAndRoute(): Playwright-shaped reference adapter
-│   ├── gateway/                 # Planned provider-neutral request rewriting layer
+│   ├── gateway/                 # Provider-neutral request rewriting layer
 │   │   ├── requestRouting.ts    # ObservationRoute → provider payload policy
 │   │   ├── imageBlocks.ts       # Extract/remove image blocks from SDK/API payloads
 │   │   └── session.ts           # Gateway session identity
 │   ├── middleware/              # Planned in-process SDK wrappers
 │   │   └── anthropic.ts         # wrapAnthropic(client, options)
-│   ├── proxy/                   # Planned local HTTP gateways
+│   ├── proxy/                   # Local HTTP gateways
 │   │   └── anthropic.ts         # Anthropic-compatible /v1/messages proxy
 │   └── utils/
 │       └── image.ts             # Sharp helpers: resize, crop, dimensions
@@ -1192,7 +1192,7 @@ if (command === 'serve') {
   // Start MCP server on stdio
   import('./server.js').then(m => m.main());
 } else if (command === 'proxy') {
-  // Planned: start local HTTP gateway for SDK baseURL integration
+  // Start local HTTP gateway for SDK baseURL integration
   import('./proxy/anthropic.js').then(m => m.main());
 } else if (command === 'run') {
   // Batch process a screenshot directory
@@ -1201,7 +1201,7 @@ if (command === 'serve') {
 } else {
   console.log('Usage:');
   console.log('  statelens serve        Start MCP server (stdio)');
-  console.log('  statelens proxy        Start local API gateway (planned)');
+  console.log('  statelens proxy        Start local API gateway');
   console.log('  statelens run <dir>    Process a screenshot directory');
 }
 ```
@@ -1880,7 +1880,7 @@ const client = wrapAnthropic(new Anthropic(), { sessionId: 'run-123' });
 
 This surface covers codebases where the user controls the SDK object but does not want to rewrite the whole agent loop.
 
-### Surface 4: Local API Gateway / Proxy (Planned)
+### Surface 4: Local API Gateway / Proxy (Built for Anthropic)
 
 For SDK-based agents, binaries, or polyglot stacks that expose a provider endpoint override.
 
