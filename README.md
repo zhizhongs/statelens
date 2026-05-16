@@ -177,6 +177,60 @@ npm run measure -- demo/screenshots/checkout_flow     # checkout flow
 node dist/eval/accuracy_check.js eval/results/phase4_login_tuned.json
 ```
 
+### What the harness output looks like
+
+The harness sends the same 12-frame login sequence to Claude Sonnet twice — once raw (Run A) and once routed through StateLens (Run B) — and prints the actual API token counts.
+
+**Login flow (12 frames):**
+
+```
+Task: 12-frame login flow analysis
+Model: claude-sonnet-4-6 (StateLens internal: claude-haiku-4-5)
+
+Run A (baseline, prev+curr image to Sonnet per frame, asks "what changed"):
+  API calls:        12
+  Input tokens:     36,255
+  Cost:             $0.1162
+
+Run B (StateLens compression):
+  Sonnet calls:     2   (text-only summaries, ~25 input tokens each)
+  Haiku calls:      5   (visual-only keyframes, downscaled to 768px)
+  Frames skipped:   5   (filtered by visual gate, zero AI calls)
+  Total input:      6,562 tokens   (49 Sonnet + 6,513 Haiku)
+  Cost:             $0.0115
+
+Savings:
+  Input tokens:        81.9%
+  Cost:                90.1%
+  Sonnet image tokens: 100%  (12 image calls → 0)
+```
+
+**Checkout flow (10 frames, form-heavy, zero gate-filterable frames):**
+
+```
+Task: 10-frame checkout flow analysis
+Model: claude-sonnet-4-6 (StateLens internal: claude-haiku-4-5)
+
+Run A (baseline, prev+curr image to Sonnet per frame):
+  API calls:        10
+  Input tokens:     29,951
+  Cost:             $0.0988
+
+Run B (StateLens compression):
+  Sonnet calls:     4   (text-only summaries)
+  Haiku calls:      6   (visual-only keyframes, Phase 4 tuning pushed
+                         form-fill frames here for accuracy)
+  Frames skipped:   0   (no two consecutive frames are pixel-redundant)
+  Total input:      9,025 tokens   (128 Sonnet + 8,897 Haiku)
+  Cost:             $0.0186
+
+Savings:
+  Input tokens:        69.9%
+  Cost:                81.2%
+```
+
+**Reading the numbers:** on login, the visual gate eliminates 42% of frames entirely. Of the remaining keyframes, OCR-driven text diffs answer most with tiny text-only Sonnet calls; the rest go to Haiku on 768px-downscaled images (Anthropic prices images by tile count, which scales with resolution). On checkout, the visual gate doesn't help because every frame differs — savings come from routing form-fills and small transitions through cheap Haiku calls instead of full-resolution Sonnet image tokens.
+
 Full methodology and evolution: [`RESULTS.md`](./RESULTS.md).
 
 ## Architecture
