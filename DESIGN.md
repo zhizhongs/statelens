@@ -1,10 +1,10 @@
-# StateLens: Universal Observation Compression for UI Agents (MCP Server)
+# StateLens: Screenshot Gateway for UI Agents
 
-## 48 Hour Hackathon Design Doc
+## Current Architecture and Proxy Roadmap
 
 ## 1. Project Summary
 
-StateLens is an open-source MCP (Model Context Protocol) server that compresses UI screenshot streams into semantic state changes. Any MCP-compatible AI tool (Claude Code, Claude Desktop, Cursor, Windsurf, Cline, Zed) discovers StateLens automatically and uses it to avoid wasting VLM calls on unchanged screens.
+StateLens compresses UI screenshot streams into semantic state changes before an agent spends expensive vision tokens. The current product ships as an open-source MCP (Model Context Protocol) server, a TypeScript pipeline library, and in-process routing helpers. The next product surface is a local SDK/proxy gateway that applies the same pipeline transparently to model API requests.
 
 Current computer-use agents operate in a loop:
 
@@ -14,15 +14,24 @@ screenshot -> VLM reasons over full image -> action -> new screenshot -> VLM rea
 
 Most consecutive screenshots are visually identical. The agent wastes tokens rediscovering unchanged UI regions.
 
-StateLens inserts a compression layer that the AI tool calls before sending the screenshot to its reasoning model:
+StateLens inserts a compression layer before the reasoning model:
 
 ```
-screenshot -> agent calls statelens_observe tool -> { changed, event_summary, text_diff } -> agent skips VLM or sends enriched context
+screenshot -> StateLens pipeline -> { route, event_summary, text_diff } -> skip image, send text, or forward full vision
 ```
 
-### How It Works for the End User
+The core pipeline is unchanged across delivery surfaces. What changes is the interception point:
 
-A developer installs StateLens globally and adds it to their MCP config. That's it. No code changes, no wrapper scripts, no API integration.
+| Surface | Status | Interception point |
+|---|---|---|
+| MCP server | Built | Agent voluntarily calls `statelens_observe` before vision reasoning |
+| In-process adapter | Built | Developer calls `observe()` / `routeObservation()` inside their agent loop |
+| SDK middleware | Planned | Wrapper intercepts `client.messages.create()` in-process |
+| Local API proxy/gateway | Planned | SDK sends `POST /v1/messages` to StateLens via `ANTHROPIC_BASE_URL` |
+
+The MCP behavior is not deprecated. It remains the right path for tool-aware clients and demos. The gateway path exists because MCP cannot force a closed or semi-closed agent loop to consult a tool before sending screenshots to its model.
+
+### How It Works for the End User Today: MCP
 
 ```bash
 npm install -g statelens
@@ -42,6 +51,24 @@ Claude Code config (`~/.claude/mcp.json`):
 ```
 
 Claude Code (or Cursor, Windsurf, etc.) now discovers StateLens tools automatically. When the AI agent encounters screenshot-heavy workflows, it calls `statelens_observe` before deciding whether to spend tokens on full image reasoning.
+
+### How It Works Next: Local Gateway
+
+For SDK-based agents, the user runs a local gateway and points the SDK at it:
+
+```bash
+statelens proxy --provider anthropic --port 8443
+export ANTHROPIC_BASE_URL=http://localhost:8443
+```
+
+The SDK still calls `client.messages.create(...)`. The request lands at StateLens first. If it contains screenshot image blocks, the gateway runs the same pipeline and applies a conservative routing policy:
+
+- `use_full_vision`: forward the request unchanged
+- `use_text_observation`: remove image blocks and inject a StateLens text observation
+- `skip_vision`: remove image blocks and inject "no meaningful UI change" context, then forward as text-only
+- `analysis_error` / `invalid_screenshot`: forward unchanged
+
+The default gateway does not man-in-the-middle arbitrary traffic and does not require custom CA certificates. It only works when the SDK or agent exposes a base URL / endpoint override.
 
 ### What Claude Code Sees
 
@@ -104,21 +131,31 @@ Every existing approach is **model-internal**. They modify the token stream insi
 - The compression is invisible. Developers cannot inspect what was kept or dropped, cannot debug agent failures from state transitions, and get no observability.
 - Integration requires modifying model internals. There is no install path for end users.
 
-StateLens is **model-external**. It runs as an MCP server that any MCP-compatible client discovers automatically. It works with any downstream model. It produces human-readable output. Integration is `npm install` and one config block.
+StateLens is **model-external**. It runs before the model call, not inside the model architecture. In the current implementation, that means an MCP server or in-process routing helper. In the gateway implementation, that means request middleware in front of Anthropic/OpenAI-compatible APIs. It works with any downstream model whose screenshots pass through one of those surfaces. It produces human-readable output developers can inspect.
 
 ### 2.3 Positioning Statement
 
 ReVision answers: "How do we make Qwen see fewer redundant patches?"
 
-StateLens answers: "How does any developer, using any AI tool, avoid wasting VLM calls on unchanged screens?"
+StateLens answers: "How does any developer, using any UI agent stack they can configure, avoid paying for screenshots that did not change?"
 
-We are not competing on internal token efficiency. We are building the **universal observation layer** that plugs into the MCP ecosystem.
+We are not competing on internal token efficiency. We are building the **screenshot gate** outside the model: first as MCP and in-process adapters, next as SDK middleware and a local API gateway.
 
-### 2.4 Why MCP Is the Right Distribution Surface
+### 2.4 Why MCP Stays, and Why Gateway Comes Next
 
-MCP is the protocol that Claude Code, Claude Desktop, Cursor, Windsurf, Cline, Continue, and Zed all use for tool discovery. A developer who installs an MCP server gets it working in every one of these clients simultaneously. No per-client integration code. No SDK wrappers. No API glue.
+MCP is still valuable. It is the protocol that Claude Code, Claude Desktop, Cursor, Windsurf, Cline, Continue, and Zed use for tool discovery. A developer who installs an MCP server gets the same StateLens tools in every MCP-aware client. This is the lowest-friction way to expose semantic screenshot observations to tool-calling agents.
 
-This means StateLens ships once and works everywhere the developer already works.
+But MCP is an opt-in side channel. The agent has to decide to call `statelens_observe`. If the agent's screenshot loop is closed, prompt-controlled, or buried inside a framework, the MCP server cannot force itself into the model-request path.
+
+The gateway surface fixes that for SDK-based agents. Anthropic-compatible SDKs expose a `baseURL` / `ANTHROPIC_BASE_URL` configuration path. OpenAI-compatible SDKs expose similar endpoint overrides. A local StateLens gateway can receive the model request, inspect image content blocks, run the pipeline, rewrite the request when safe, and forward it upstream. No MCP tool call is required from the agent.
+
+This creates an honest three-tier integration story:
+
+| Tier | Integration | StateLens surface |
+|---|---|---|
+| 1 | Developer controls the agent loop | In-process adapter or MCP tool call |
+| 2 | SDK-based agent with configurable endpoint | SDK middleware or local API gateway |
+| 3 | Fully hosted closed agent with no hooks | Out of scope unless the vendor adds an integration point |
 
 ## 3. MCP Tool Definitions
 
@@ -285,10 +322,13 @@ Clear session state to start fresh.
 
 ### 4.1 Pipeline Overview
 
-The core pipeline is identical regardless of whether StateLens is consumed as an MCP server, a library, or an API. The MCP server is a thin wrapper that maps tool calls to pipeline functions.
+The core pipeline is identical regardless of whether StateLens is consumed as an MCP server, a library adapter, SDK middleware, or a local API gateway. Each surface is a thin wrapper around the same `observe()` function.
 
 ```
-MCP Tool Call (statelens_observe)
+Input surface
+  - MCP Tool Call (statelens_observe)
+  - In-process adapter call
+  - Planned SDK middleware / proxy request
        |
        v
 [Stage 1] Cheap Visual Gate          <-- pHash + pixelmatch, <5ms, no GPU
@@ -311,7 +351,7 @@ MCP Tool Call (statelens_observe)
 [Stage 6] Timeline Assembly          <-- merge into session event log
        |
        v
-MCP Tool Response (structured JSON)
+Structured observation or rewritten model request
 ```
 
 ### 4.2 Stage 1: Cheap Visual Gate
@@ -910,12 +950,178 @@ export function resetSession(sessionId: string) {
 }
 ```
 
+### 5.3 Shared Routing Contract
+
+All delivery surfaces use the same pipeline and route decision. MCP returns the raw `ObservationResult` because the agent is responsible for deciding how to use the tool result. In-process adapters and the planned gateway additionally call `routeObservation()` to turn the observation into a model-request policy.
+
+```typescript
+type ObservationRoute =
+  | { route: 'skip_vision'; reason: string; observation: ObservationResult }
+  | { route: 'use_text_observation'; context: string; observation: ObservationResult }
+  | { route: 'use_full_vision'; reason: string; observation: ObservationResult };
+```
+
+Gateway policy:
+
+| Route | Default gateway behavior | Why |
+|---|---|---|
+| `use_full_vision` | Forward the original request unchanged | Preserve accuracy on first frames, failures, and visual-only states |
+| `use_text_observation` | Strip screenshot image blocks and inject StateLens text context | Preserve model reasoning while avoiding image tokens |
+| `skip_vision` | Strip screenshot image blocks and inject no-change context, then forward text-only | Let the agent maintain loop continuity without paying for pixels |
+| `analysis_error` / `invalid_screenshot` | Forward unchanged | Fail open rather than silently losing state |
+
+Hard short-circuiting, where StateLens returns a synthesized model response without forwarding upstream, is an opt-in optimization for deterministic loops. It is not the default because generic agents may rely on each model turn for planning, tool calls, or conversation state.
+
+### 5.4 Planned SDK Middleware
+
+The lowest-friction Tier 2 product is an in-process SDK wrapper. It avoids a network hop, avoids TLS questions, and works for applications that instantiate their model client directly.
+
+Target Anthropic shape:
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import { wrapAnthropic } from 'statelens/anthropic';
+
+const client = wrapAnthropic(new Anthropic(), {
+  sessionId: 'checkout-flow',
+});
+
+await client.messages.create({
+  model: 'claude-sonnet-4-6',
+  max_tokens: 512,
+  messages,
+});
+```
+
+Wrapper behavior:
+
+1. Intercept `messages.create()`.
+2. Detect image content blocks in the request body.
+3. Decode screenshot bytes from base64 data URLs or provider-native image source fields.
+4. Call `observe(buffer, sessionId, actionLabel)`.
+5. Call `routeObservation(observation)`.
+6. Rewrite the request according to the routing table above.
+7. Delegate to the real SDK client.
+
+The wrapper must preserve SDK behavior outside screenshot-bearing requests: streaming, retries, headers, beta flags, tool definitions, system prompts, and non-image messages should pass through unchanged.
+
+### 5.5 Planned Local API Gateway
+
+The gateway version is for agents or binaries that do not expose their SDK instance but do let the user override the API endpoint.
+
+Detailed implementation spec: `docs/PROXY_IMPLEMENTATION.md`.
+
+Target CLI:
+
+```bash
+statelens proxy --provider anthropic --port 8443
+export ANTHROPIC_BASE_URL=http://localhost:8443
+```
+
+Target endpoint coverage:
+
+```text
+GET  /health
+POST /v1/messages              Anthropic-compatible request rewriting
+GET  /sessions/:id/timeline    StateLens timeline/debug endpoint
+POST /sessions/:id/reset       Clear gateway session state
+```
+
+Future provider endpoints:
+
+```text
+POST /v1/chat/completions      OpenAI-compatible request rewriting
+POST /responses                OpenAI Responses API request rewriting
+```
+
+Anthropic request flow:
+
+```
+SDK client
+  |
+  | POST /v1/messages
+  v
+StateLens gateway
+  |
+  | parse JSON body
+  | find messages[].content[] image blocks
+  | run observe() on latest screenshot
+  | routeObservation()
+  | rewrite body or fail open
+  v
+api.anthropic.com/v1/messages
+  |
+  v
+gateway returns upstream response to SDK
+```
+
+Provider-specific request rewriting:
+
+- Preserve `model`, `max_tokens`, `temperature`, `tools`, `tool_choice`, `system`, `metadata`, and beta fields.
+- Preserve all non-screenshot text/tool content blocks in order.
+- Remove only the screenshot image block(s) selected for gating.
+- Append a text content block after the surrounding user content:
+
+```text
+StateLens observation for the latest UI screenshot:
+Event: error_appeared
+Summary: Red error banner appeared: Invalid password
+Text appeared: "Invalid password"
+Regions changed: top banner
+
+Use this observation instead of re-reading the removed screenshot unless the task explicitly requires raw visual inspection.
+```
+
+Session identity:
+
+- Prefer explicit `x-statelens-session-id` header when present.
+- Otherwise derive a process-local session from provider, API key hash prefix, and request conversation shape.
+- Expose `STATELENS_SESSION_ID` for simple single-session demos.
+- Never send StateLens session metadata upstream unless the provider request already included user metadata and the user opted in.
+
+Internal VLM calls:
+
+- StateLens's own Haiku / small-VLM calls must bypass the gateway to avoid recursion.
+- The internal client should use the real upstream base URL explicitly, ignoring `ANTHROPIC_BASE_URL` when `STATELENS_UPSTREAM_ANTHROPIC_BASE_URL` is set.
+- Gateway accounting must include internal VLM usage in timeline and savings metrics, matching the existing measurement harness.
+
+Streaming:
+
+- MVP supports non-streaming requests first.
+- Streaming pass-through is allowed when no rewrite is needed.
+- For rewritten streaming requests, the gateway can forward the rewritten request upstream with `stream: true` and pipe the provider event stream back unchanged.
+- Synthetic short-circuit streaming is deferred; it is only needed for opt-in hard-skip mode.
+
+Security and privacy:
+
+- No transparent MITM.
+- No custom CA installation.
+- Local HTTP is acceptable for localhost development; remote/team deployment must use HTTPS.
+- Do not log raw screenshots by default.
+- Log route decisions, token estimates, latency, and event summaries.
+- Provide `STATELENS_LOG_IMAGES=1` only for explicit debugging.
+
+Implementation modules:
+
+```text
+src/gateway/
+  requestRouting.ts       provider-neutral route policy
+  imageBlocks.ts          extract/remove image blocks from provider payloads
+  session.ts              gateway session identity and timeline lookup
+src/middleware/
+  anthropic.ts            wrapAnthropic(client, options)
+src/proxy/
+  anthropic.ts            local HTTP handler for /v1/messages
+```
+
+The gateway must not change the MCP server's tool definitions or behavior. It imports the same pipeline and adapter helpers; it does not replace `src/server.ts`.
+
 ## 6. Code Architecture
 
 ```
 statelens/
 ├── src/
-│   ├── index.ts                 # CLI entry: serve | run <dir> | measure
+│   ├── index.ts                 # CLI entry: serve | run <dir> | measure | proxy (planned)
 │   ├── server.ts                # MCP server: tool definitions + handlers
 │   ├── pipeline/
 │   │   ├── index.ts             # Pipeline orchestrator: observe(), getTimeline()
@@ -928,6 +1134,14 @@ statelens/
 │   ├── adapters/                # Post-Phase-3 in-process integration layer
 │   │   ├── routeObservation.ts  # Maps ObservationResult → skip/text/vision route
 │   │   └── playwright.ts        # captureAndRoute(): Playwright-shaped reference adapter
+│   ├── gateway/                 # Planned provider-neutral request rewriting layer
+│   │   ├── requestRouting.ts    # ObservationRoute → provider payload policy
+│   │   ├── imageBlocks.ts       # Extract/remove image blocks from SDK/API payloads
+│   │   └── session.ts           # Gateway session identity
+│   ├── middleware/              # Planned in-process SDK wrappers
+│   │   └── anthropic.ts         # wrapAnthropic(client, options)
+│   ├── proxy/                   # Planned local HTTP gateways
+│   │   └── anthropic.ts         # Anthropic-compatible /v1/messages proxy
 │   └── utils/
 │       └── image.ts             # Sharp helpers: resize, crop, dimensions
 ├── eval/
@@ -977,6 +1191,9 @@ const command = process.argv[2];
 if (command === 'serve') {
   // Start MCP server on stdio
   import('./server.js').then(m => m.main());
+} else if (command === 'proxy') {
+  // Planned: start local HTTP gateway for SDK baseURL integration
+  import('./proxy/anthropic.js').then(m => m.main());
 } else if (command === 'run') {
   // Batch process a screenshot directory
   const dir = process.argv[3];
@@ -984,6 +1201,7 @@ if (command === 'serve') {
 } else {
   console.log('Usage:');
   console.log('  statelens serve        Start MCP server (stdio)');
+  console.log('  statelens proxy        Start local API gateway (planned)');
   console.log('  statelens run <dir>    Process a screenshot directory');
 }
 ```
@@ -1534,7 +1752,7 @@ We cannot claim success-rate improvement on agent benchmarks (OSWorld, WebTailBe
 
 ### 15 Second Version
 
-UI agents waste money re-examining screenshots where nothing changed. StateLens is an open-source MCP server that compresses screenshot streams into semantic state changes. Install it, add it to your config, and any AI coding tool automatically uses it. 85% fewer VLM calls.
+UI agents waste money re-examining screenshots where nothing changed. StateLens is a screenshot gate that turns redundant frames into cheap semantic observations. Today it ships as MCP and an in-process adapter; next it becomes a local SDK gateway. 70-82% fewer input tokens in our measured flows.
 
 ### 60 Second Version
 
@@ -1542,7 +1760,7 @@ Every computer-use agent works the same way: screenshot, reason, act, repeat. Mi
 
 Existing solutions like ReVision require fine-tuning a specific model. They work for Qwen but not for Claude, not for GPT, not for anyone else.
 
-StateLens is an open-source MCP server. `npm install`, add it to your config, and Claude Code, Cursor, or any MCP client automatically discovers it. The agent calls `statelens_observe` before sending a screenshot to its reasoning model. We run cheap local processing: pixel diff, OCR, spatial localization. We only call a VLM for the small fraction of frames where text cannot explain the visual change. 85% fewer VLM calls, under 50ms per frame, and a semantic timeline the developer can read.
+StateLens is a model-external screenshot gate. Today, `npm install`, add it to your MCP config, and Claude Code, Cursor, or any MCP client can call `statelens_observe` before sending a screenshot to its reasoning model. For custom agents, the same pipeline is available as an in-process routing helper. The next surface is a local SDK gateway: point `ANTHROPIC_BASE_URL` at StateLens and screenshot-bearing requests are rewritten before they hit the expensive model. We run cheap local processing: pixel diff, OCR, spatial localization. We only call a small VLM for the fraction of frames where text cannot explain the visual change. The output is a semantic timeline the developer can read.
 
 ### 2 Minute Version (for Pitch Day)
 
@@ -1550,22 +1768,23 @@ StateLens is an open-source MCP server. `npm install`, add it to your config, an
 
 [Existing Solutions] Researchers have attacked this. ReVision trains a patch selector inside Qwen2.5-VL-7B that drops redundant tokens. It works: 46% token reduction, +3% success rate. But it requires fine-tuning a specific model on filtered trajectories. Anthropic cannot use it. OpenAI cannot use it. There is no install path for end users. The compression is invisible.
 
-[StateLens] We built the opposite. StateLens is an open-source MCP server. You install it with npm, add one config block, and every MCP-compatible AI tool, Claude Code, Cursor, Windsurf, discovers it automatically. When the agent takes a screenshot, it calls `statelens_observe` first. We run cheap local processing: pixel diffing to catch identical frames, OCR to extract text changes, spatial analysis to localize what moved. We only call a vision model for the rare frames where the visual change cannot be explained by text alone.
+[StateLens] We built the opposite. StateLens is model-external. You can install it as an MCP server today, use it as an in-process adapter in custom loops, and the next step is a local gateway that sits in front of configurable SDKs. When a screenshot passes through StateLens, we run cheap local processing: pixel diffing to catch identical frames, OCR to extract text changes, spatial analysis to localize what moved. We only call a vision model for the rare frames where the visual change cannot be explained by text alone.
 
-[Demo] Two pieces of evidence. First, the numbers. We built an A/B harness that runs the same 14-screenshot login-flow task against Claude Sonnet twice — once sending raw images, once routing through StateLens. The token counts come straight from the Anthropic API. [show measure_tokens output] 16,847 input tokens drops to 3,720. Cost: $0.0093 instead of $0.0589. 84% reduction, reproducibly. Second, the integration. [switch to Cursor window] Here is Cursor with StateLens installed as an MCP server. I ask it to walk through the same screenshots. Cursor discovers our four tools automatically, calls statelens_observe for each frame, and produces the semantic timeline. Zero custom integration code.
+[Demo] Two pieces of evidence. First, the numbers. We built an A/B harness that runs the same screenshot task against Claude Sonnet twice — once sending raw images, once routing through StateLens. The token counts come straight from the Anthropic API. [show measure_tokens output] Input tokens drop 70-82% across the measured login and checkout flows, with honest accounting for internal Haiku calls. Second, the integration. [switch to Cursor window] Here is Cursor with StateLens installed as an MCP server. I ask it to walk through the same screenshots. Cursor discovers our four tools automatically, calls statelens_observe for each frame, and produces the semantic timeline. That MCP behavior stays. The next demo is the same pipeline running transparently through an SDK gateway.
 
-[Vision] Every CUA needs this layer. We are shipping it as an open-source MCP server so the entire ecosystem can use it today. The roadmap is clear: benchmark validation on OSWorld, a hosted version with session analytics, and enterprise observability. StateLens: compress UI screenshots into the state changes agents actually need.
+[Vision] Every CUA needs this layer. We are shipping the MCP server so tool-aware clients can use it today, and we are moving toward SDK middleware and a local gateway so configurable agents can get the savings without rewriting their loops. The roadmap is clear: proxy validation, benchmark validation on OSWorld-style tasks, session analytics, and enterprise observability. StateLens: stop paying for screenshots that did not change.
 
 ## 13. What Makes This Different
 
 StateLens is not a token pruning paper. It is not a model-internal optimization.
 
-It is an **open-source MCP server** defined by four properties:
+It is a **model-external screenshot gate** defined by five properties:
 
 1. **Model-agnostic.** Works with any downstream VLM or agent framework. No fine-tuning.
-2. **Zero-config.** `npm install -g statelens`, add to MCP config, done. Any MCP client discovers it.
+2. **Multiple interception points.** MCP for tool-aware clients, in-process adapters for custom loops, SDK/proxy gateway for configurable model clients.
 3. **Interpretable.** Produces human-readable semantic timelines, not invisible token masks.
 4. **Cheap-first.** Local processing handles 80%+ of frames. VLM calls are the exception.
+5. **Fail-open.** If StateLens cannot confidently rewrite a request, the gateway forwards the original screenshot-bearing request unchanged.
 
 ## 14. Risks and Mitigations
 
@@ -1581,6 +1800,9 @@ It is an **open-source MCP server** defined by four properties:
 ### Risk 4: The editor agent does not call StateLens tools (defeats the live demo)
 **Mitigation:** Three layers. (a) Tool descriptions explicitly say "call this before sending a screenshot to your reasoning model." (b) The demo prompt explicitly instructs "use statelens_observe instead of reading the images directly" — this mirrors what end users would put in their own CLAUDE.md or .cursorrules. (c) Critically, **the primary demo (`npm run measure`) does not depend on the editor agent at all.** It calls the Anthropic SDK directly with a controlled loop, so the token-savings numbers are deterministic and independent of editor behavior. The live MCP demo is the secondary "wow" — if it misbehaves, the headline numbers still hold.
 
+### Risk 4b: The gateway rewrites too aggressively
+**Mitigation:** Default to fail-open and text-only forwarding. `analysis_error`, `invalid_screenshot`, unsupported provider payloads, unknown streaming modes, and ambiguous image blocks all forward unchanged. Synthetic no-forward responses require an explicit opt-in flag because generic agents may rely on each model turn for planning or tool calls.
+
 ### Risk 5: Judges ask "why not just use ReVision?"
 **Mitigation:** Prepared comparison: ReVision requires fine-tuning Qwen2.5-VL-7B, is model-specific, produces no developer-facing output, has no install path for end users. StateLens is `npm install`, model-agnostic, produces interpretable timelines.
 
@@ -1595,20 +1817,27 @@ It is an **open-source MCP server** defined by four properties:
 4. **HTML report:** Generate a visual session report with before/after thumbnails
 5. **Cost calculator:** Input model pricing, get projected savings across session lengths
 6. **Multi-language OCR:** tesseract.js supports 100+ languages
-7. **HTTP API wrapper:** Express server for cross-language consumers (the API doc covers this path)
+7. **SDK middleware:** `wrapAnthropic()` / `wrapOpenAI()` request rewriting in-process
+8. **Local API gateway:** provider-compatible proxy using `ANTHROPIC_BASE_URL` / OpenAI endpoint overrides
+9. **HTTP observation API:** explicit `POST /observe` endpoint for cross-language consumers
 
-## 16. Three Integration Surfaces
+## 16. Integration Surfaces
 
-StateLens core is a TypeScript library. It ships with three wrappers for different consumers:
+StateLens core is a TypeScript library. The product should ship multiple wrappers for different interception points. MCP remains supported; proxy/gateway support is additive.
 
-### Surface 1: MCP Server (Primary)
-For developers using Claude Code, Cursor, Windsurf, or any MCP client. Zero-code integration.
+### Surface 1: MCP Server (Built)
+
+For developers using Claude Code, Cursor, Windsurf, or any MCP client. This is the current zero-code tool-discovery integration.
+
 ```bash
 npm install -g statelens
 # Add to MCP config, done
 ```
 
-### Surface 2: Library Import
+MCP limitation: the agent must choose to call `statelens_observe`. This surface is excellent for tool-aware clients and demos, but it cannot force closed screenshot loops to gate vision calls.
+
+### Surface 2: Library Import and Agent Adapter (Built)
+
 For developers building custom agents in TypeScript/JavaScript who control their own loop. This is the post-Phase-3 in-process integration path — see `docs/POST_PHASE3_AGENT_INTEGRATION.md`.
 
 Raw pipeline:
@@ -1638,14 +1867,40 @@ const { screenshot, observation, route } = await captureAndRoute(page, {
 
 The router and adapter live outside `src/pipeline/` so they do not expand Person A's locked surface. The pipeline contract — `observe()`, `getTimeline()`, `resetSession()`, `getVlmCumulativeUsage()`, `resetVlmCumulativeUsage()` — is unchanged.
 
-### Surface 3: HTTP API (Stretch Goal)
-For cross-language consumers, cloud deployment, enterprise. Any language POSTs screenshots, gets JSON back.
+### Surface 3: SDK Middleware (Planned)
+
+For apps that instantiate the model SDK directly. This should be the first Tier 2 experiment because it avoids a separate process and proves request rewriting with minimal infrastructure.
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import { wrapAnthropic } from 'statelens/anthropic';
+
+const client = wrapAnthropic(new Anthropic(), { sessionId: 'run-123' });
+```
+
+This surface covers codebases where the user controls the SDK object but does not want to rewrite the whole agent loop.
+
+### Surface 4: Local API Gateway / Proxy (Planned)
+
+For SDK-based agents, binaries, or polyglot stacks that expose a provider endpoint override.
+
+```bash
+statelens proxy --provider anthropic --port 8443
+export ANTHROPIC_BASE_URL=http://localhost:8443
+```
+
+The gateway receives provider-compatible model requests, rewrites screenshot-bearing payloads when StateLens has a cheaper observation, and forwards upstream. It is not a transparent MITM and should not require TLS interception.
+
+### Surface 5: Standalone HTTP Observation API (Optional)
+
+For cross-language consumers that want explicit calls rather than provider-compatible proxying.
+
 ```bash
 statelens api --port 3000
 # POST /observe, GET /session/:id/timeline
 ```
 
-All three wrap the same `observe()` function. The MCP server is the primary distribution surface because it reaches the most users with the least integration effort.
+All surfaces wrap the same `observe()` function. The product direction is: keep MCP stable, validate SDK middleware first, then ship the local gateway once request rewriting and session semantics are proven.
 
 ## 17. Success Criteria
 
@@ -1660,13 +1915,16 @@ By the end of 48 hours, the project is successful if:
 7. Live MCP demo conversation in Cursor (or Claude Code) walks through the 14-frame login flow end to end
 8. The pitch clearly positions StateLens vs ReVision and the academic landscape
 9. The GitHub repo has a clean README with install instructions for Cursor, Claude Code, and Claude Desktop
+10. The design doc specifies the SDK/proxy gateway path without changing the MCP tool contract
 
 Nice to have:
 1. Second demo scenario working
 2. Live Playwright agent integration
 3. Annotated diff images
 4. HTML session report
-5. HTTP API wrapper
+5. SDK middleware prototype
+6. Local Anthropic-compatible proxy prototype
+7. HTTP observation API
 
 ## 18. Name
 
@@ -1679,7 +1937,7 @@ Compress UI screenshots into the state changes agents actually need.
 GitHub description:
 
 ```
-Open-source MCP server for UI agent observation compression.
+Screenshot gateway for UI agents.
 Filters redundant screenshots, extracts semantic state changes,
-cuts VLM calls by 85%. Works with Claude Code, Cursor, and any MCP client.
+and cuts vision-token spend. Ships as MCP today; SDK/proxy gateway next.
 ```

@@ -1,16 +1,16 @@
 # StateLens
 
-> Open-source MCP server for UI agent observation compression. **Measured: 70-82% input-token reduction, 81-90% cost reduction on real Anthropic API calls, with 78-100% event-capture accuracy** across two scenarios. See [`RESULTS.md`](./RESULTS.md) for the full numbers.
+> Screenshot gateway for computer-use agents. StateLens ships today as an MCP server and in-process routing library, with a proxy/gateway path planned next. **Measured: 70-82% input-token reduction, 81-90% cost reduction on real Anthropic API calls, with 78-100% event-capture accuracy** across two scenarios. See [`RESULTS.md`](./RESULTS.md) for the full numbers.
 
 StateLens sits between a UI agent and its reasoning model. It watches a stream of screenshots, filters out redundant frames cheaply, extracts semantic state changes, and returns a structured observation. The agent receives a compressed, human-readable diff instead of raw pixels.
 
-Works with **Cursor**, **Claude Code**, **Claude Desktop**, and any MCP-compatible client.
+Today it works with **Cursor**, **Claude Code**, **Claude Desktop**, any MCP-compatible client, and custom agent loops that can call the TypeScript routing helper. The next delivery surface is a local SDK/proxy gateway for agents that send screenshots through configurable model SDKs.
 
 See [`DESIGN.md`](./DESIGN.md) for the full design document.
 
 ## Status
 
-Hackathon scaffold. Not yet functional. See [`DESIGN.md` Section 8](./DESIGN.md) for the 48-hour build roadmap.
+Working MCP server, pipeline, Playwright-shaped adapter, and measurement harness. The proxy/gateway integration described below is intentionally a design target, not a shipped command yet. See [`DESIGN.md`](./DESIGN.md) for the current architecture and gateway roadmap.
 
 ## For the build team
 
@@ -37,6 +37,8 @@ npm link
 
 ## Configure
 
+MCP remains a first-class integration. Do not remove or bypass it when adding proxy support; the gateway is an additional wrapper around the same pipeline.
+
 ### Cursor
 
 Add to `~/.cursor/mcp.json`:
@@ -59,6 +61,30 @@ Add to `~/.claude/mcp.json` (same shape as above).
 ### Claude Desktop
 
 Add to `claude_desktop_config.json` (same shape as above).
+
+## Integration Surfaces
+
+StateLens has one core pipeline and multiple delivery surfaces:
+
+| Surface | Status | Best for |
+|---|---|---|
+| MCP server (`statelens serve`) | Built | Cursor, Claude Code, Claude Desktop, and agents that can choose to call tools |
+| In-process routing helper | Built | Custom Playwright/Puppeteer/browser-use style loops where you control screenshot capture |
+| SDK middleware | Planned | Apps that instantiate the Anthropic/OpenAI SDK in code and can wrap the client |
+| Local API proxy/gateway | Planned | SDK-based agents or binaries that support `baseURL` / endpoint overrides |
+
+The MCP server asks the agent to call `statelens_observe`. The proxy/gateway form sits in the model-request path and can gate screenshots even when the agent loop itself was not written to call an MCP tool.
+
+Planned proxy shape:
+
+```bash
+statelens proxy --provider anthropic --port 8443
+export ANTHROPIC_BASE_URL=http://localhost:8443
+```
+
+The gateway would receive Anthropic-compatible `POST /v1/messages` requests, detect screenshot image blocks, run the existing StateLens pipeline, and then either forward the request unchanged, strip image blocks and inject a text observation, or conservatively forward unchanged on analysis errors. Hard short-circuit responses are an opt-in mode, not the default.
+
+See [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md) for the implementation plan: file layout, request rewriting rules, session handling, upstream forwarding, tests, and rollout milestones.
 
 ## Quickstart
 
@@ -128,7 +154,7 @@ estimated_tokens_saved in the final answer.
 
 - Compliance is voluntary: a closed client may skip the tool on any given turn.
 - Token accounting is approximate: we only see calls the agent actually makes.
-- For reliable interception, use the in-process adapter path below.
+- For reliable interception today, use the in-process adapter path below. For SDK-based agents that expose a base URL override, use the planned proxy/gateway path once it ships.
 
 ## In-Process Agent Integration (Custom Agents, Demos, Eval Harnesses)
 
@@ -231,7 +257,10 @@ Token counts come directly from `response.usage.input_tokens` in the Anthropic A
 ## Architecture
 
 ```
-Screenshot Input
+Input Surface
+  - MCP tool call
+  - In-process adapter
+  - Planned SDK/proxy gateway
        |
        v
 [Stage 1] Cheap Visual Gate          <-- hash + pixelmatch, <5ms
@@ -253,17 +282,21 @@ Screenshot Input
 [Stage 6] Timeline Assembly          <-- session event log
        |
        v
-Structured Observation Response
+Structured observation or rewritten model request
 ```
 
-See [`DESIGN.md`](./DESIGN.md) Section 4 for implementation details of each stage.
+See [`DESIGN.md`](./DESIGN.md) Section 4 for implementation details of each stage and Section 5.5 for the planned local gateway.
 
 ## Project Structure
 
 ```
 src/pipeline/        Pure TypeScript library (Person A owns)
 src/server.ts        MCP server (Person B owns)
-src/index.ts         CLI entry: serve | run | measure
+src/index.ts         CLI entry: serve | run | measure | proxy (planned)
+src/adapters/        Built in-process routing helpers
+src/gateway/         Planned request rewriting layer
+src/middleware/      Planned SDK wrappers
+src/proxy/           Planned local API gateways
 eval/                Token measurement harness — primary demo artifact
 demo/                Live computer-use demo + prerecorded screenshot sequences
 tests/               Vitest unit tests
