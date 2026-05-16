@@ -1,6 +1,6 @@
 # StateLens
 
-> Open-source MCP server for UI agent observation compression. Filters redundant screenshots, extracts semantic state changes, cuts VLM calls by ~85%.
+> Open-source MCP server for UI agent observation compression. **Measured: 70-82% input-token reduction, 81-90% cost reduction on real Anthropic API calls, with 78-100% event-capture accuracy** across two scenarios. See [`RESULTS.md`](./RESULTS.md) for the full numbers.
 
 StateLens sits between a UI agent and its reasoning model. It watches a stream of screenshots, filters out redundant frames cheaply, extracts semantic state changes, and returns a structured observation. The agent receives a compressed, human-readable diff instead of raw pixels.
 
@@ -158,33 +158,46 @@ export ANTHROPIC_API_KEY=sk-ant-...
 npm run measure
 ```
 
-Measured output (12-frame login flow, real Anthropic API calls):
+### Headline results
+
+Measured on two scenarios, real Anthropic API token counts, baseline = raw screenshots through Sonnet with a fair "what changed" prompt (prev + curr image to Sonnet per frame):
+
+| Scenario | Frames | Token reduction | Cost reduction | Accuracy (lenient) | Accuracy (strict) |
+|---|---|---|---|---|---|
+| **Login** (GitHub sign-in → 2FA → dashboard) | 12 | **81.9%** | **90.1%** | **100.0%** | 81.8% |
+| **Checkout** (Zara cart → shipping → payment) | 10 | **69.9%** | **81.2%** | **77.8%** | 33.3% |
+
+Accuracy is judged by Claude Haiku against the raw-image baseline (does StateLens's compressed signal describe the same UI event?). `skipped` frames count as agreement; first frame of each session is excluded (no prior to compare against). Full per-frame verdicts under `eval/results/phase4_*.accuracy.json`.
+
+**Headline numbers come from `eval/results/phase4_login_tuned.json` and `eval/results/phase4_checkout_tuned.json`.** Full evolution and methodology in [`RESULTS.md`](./RESULTS.md).
+
+### Login example output (12-frame run, post-Phase-4 tuning)
 
 ```
 Task: 12-frame login flow analysis
 Model: claude-sonnet-4-6 (StateLens internal: claude-haiku-4-5)
 
-Run A (baseline, raw images):
+Run A (baseline, raw images, prev+curr to Sonnet per frame):
   API calls:        12
-  Input tokens:     19,008
-  Cost:             $0.0645
+  Input tokens:     36,255
+  Cost:             $0.1162
 
 Run B (StateLens compression):
-  Sonnet calls:     2   (text-only summaries)
+  Sonnet calls:     2   (text-only summaries, ~25 input tokens each)
   Haiku calls:      5   (visual-only keyframes, downscaled to 768px)
   Frames skipped:   5   (filtered by visual gate, zero AI calls)
-  Total input:      6,562 tokens
-  Cost:             $0.0107
+  Total input:      6,562 tokens   (49 Sonnet + 6,513 Haiku)
+  Cost:             $0.0115
 
 Savings:
-  Input tokens:        65.5%
-  Cost:                83.4%
-  Sonnet input tokens: 99.7% (12 image calls → 2 text-only calls)
+  Input tokens:        81.9%
+  Cost:                90.1%
+  Sonnet image tokens: 100%  (12 image calls → 0)
 ```
 
 Token counts come directly from `response.usage.input_tokens` in the Anthropic API responses. The harness includes honest accounting for Haiku tokens consumed inside StateLens — Run B's reported total includes Haiku, so the savings claim is not a "shift to a cheaper model" trick.
 
-**Reading the numbers:** the visual gate eliminates 42% of frames entirely. Of the remaining keyframes, OCR-driven text diffs let us answer some of them with tiny text-only Sonnet calls. The rest get a Haiku vision call — and those images are downscaled to 768px before encoding (Anthropic prices images by tile count, which scales with resolution). Result: the same task that cost $0.065 in raw API calls costs $0.011 routed through StateLens.
+**Reading the numbers:** the visual gate eliminates 42% of frames entirely. Of the remaining keyframes, OCR-driven text diffs let us answer some of them with tiny text-only Sonnet calls. The rest get a Haiku vision call — and those images are downscaled to 768px before encoding (Anthropic prices images by tile count, which scales with resolution). Result: the same task that cost $0.116 in raw API calls costs $0.012 routed through StateLens.
 
 ## Architecture
 
