@@ -15,6 +15,10 @@ const RESPONSE_HEADER_BLOCKLIST = new Set([
   'trailer',
   'transfer-encoding',
   'upgrade',
+  // fetch() automatically decodes the body; the original content-encoding and
+  // content-length no longer describe what we're piping back to the SDK.
+  'content-encoding',
+  'content-length',
 ]);
 
 export function sanitizeRequestHeaders(headers: Headers): Headers {

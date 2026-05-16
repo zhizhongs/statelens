@@ -1,0 +1,110 @@
+{
+  "results_file": "eval/results/proxy_ab_2026-05-16T22-04-36-444Z.json",
+  "judge_model": "claude-haiku-4-5-20251001",
+  "total": 12,
+  "excluded_session_start": 0,
+  "skipped": 5,
+  "matches": 4,
+  "partials": 3,
+  "misses": 0,
+  "strict_agreement": 0.75,
+  "lenient_agreement": 1,
+  "verdicts": [
+    {
+      "file": "002.png",
+      "action": "skipped",
+      "run_a_summary": "The **Username or email address** input field became focused (highlighted with a blue border) in the second screenshot.",
+      "run_b_summary": "(filtered by visual gate — no AI call)",
+      "agreement": "match",
+      "reason": "StateLens filtered the frame; no observation produced — counts as agreement by construction"
+    },
+    {
+      "file": "004.png",
+      "action": "skipped",
+      "run_a_summary": "The username field changed from \"zhizhongs\" to \"zhizhongs@uchicago.edu\", indicating the user updated their login credential to a full email address.",
+      "run_b_summary": "(filtered by visual gate — no AI call)",
+      "agreement": "match",
+      "reason": "StateLens filtered the frame; no observation produced — counts as agreement by construction"
+    },
+    {
+      "file": "005.png",
+      "action": "skipped",
+      "run_a_summary": "The **Password field** became focused/active (highlighted with a blue border) in the second screenshot, indicated by the appearance of a text cursor inside the field.",
+      "run_b_summary": "(filtered by visual gate — no AI call)",
+      "agreement": "match",
+      "reason": "StateLens filtered the frame; no observation produced — counts as agreement by construction"
+    },
+    {
+      "file": "006.png",
+      "action": "skipped",
+      "run_a_summary": "A password was entered into the password field (shown as masked dots) between the two screenshots.",
+      "run_b_summary": "(filtered by visual gate — no AI call)",
+      "agreement": "match",
+      "reason": "StateLens filtered the frame; no observation produced — counts as agreement by construction"
+    },
+    {
+      "file": "007.png",
+      "action": "skipped",
+      "run_a_summary": "The password field lost focus (the blue border highlight disappeared and the cursor is no longer visible) between the two screenshots.",
+      "run_b_summary": "(filtered by visual gate — no AI call)",
+      "agreement": "match",
+      "reason": "StateLens filtered the frame; no observation produced — counts as agreement by construction"
+    },
+    {
+      "file": "001.png",
+      "action": "text_summary",
+      "run_a_summary": "This is the **GitHub login page**, featuring fields for username/email and password, a green \"Sign in\" button, and alternative sign-in options via **Google** or **Apple**, along with links to create an account or sign in with a passkey.",
+      "run_b_summary": "This is the **GitHub login page**, featuring fields for username/email and password, a green \"Sign in\" button, and alternative sign-in options via Google, Apple, or a passkey.",
+      "agreement": "partial",
+      "reason": "Description A mentions explicit links to create an account and sign in with a passkey, while B only lists passkey as an alternative sign-in option without distinguishing it from the account creation link."
+    },
+    {
+      "file": "003.png",
+      "action": "text_summary",
+      "run_a_summary": "The username field changed from being empty (with a blue active border) to containing the text \"zhizhongs\" (with a standard inactive border).",
+      "run_b_summary": "Based on the StateLens observation, the text in the UI changed by replacing content that included \"| | / 4 / be\" with new content containing \"| / zhizhongs / (\", indicating a **username or navigation path was updated** in what appears to be a GitHub interface element, likely reflecting a switch to or input of the username \"zhizhongs.\"",
+      "agreement": "match",
+      "reason": "Both describe the same event: a username field transitioning from empty to containing 'zhizhongs', though B uses different terminology to represent the same state change."
+    },
+    {
+      "file": "008.png",
+      "action": "text_summary",
+      "run_a_summary": "The user successfully entered their credentials on the GitHub sign-in page and was redirected to the two-factor authentication page, which is now requesting approval via the GitHub Mobile app.",
+      "run_b_summary": "The user successfully submitted their GitHub login credentials (email: zhizhongs@uchicago.edu) and progressed from the sign-in form to a two-factor authentication screen requiring approval via the GitHub Mobile app.",
+      "agreement": "match",
+      "reason": "Both descriptions document the same UI event: successful GitHub credential entry leading to a two-factor authentication screen requiring mobile app approval."
+    },
+    {
+      "file": "009.png",
+      "action": "text_summary",
+      "run_a_summary": "The sign-in request timed out, resulting in the addition of a red error banner (\"Sign-in request timed out\"), a \"We could not verify your identity\" message, and a green \"Retry GitHub Mobile\" button appearing on the page.",
+      "run_b_summary": "Between the two screenshots, the GitHub two-factor authentication page transitioned from awaiting mobile app approval to displaying a **timeout error**, with the original waiting message replaced by \"Sign-in request timed out\" and \"We could not verify your identity,\" along with a **\"Retry GitHub Mobile\"** button appearing.",
+      "agreement": "match",
+      "reason": "Both describe the same UI event: a sign-in timeout error appearing with specific error messages and a retry button on a GitHub authentication page."
+    },
+    {
+      "file": "010.png",
+      "action": "text_summary",
+      "run_a_summary": "The sign-in request timed out error was dismissed and the \"More options\" menu was expanded, revealing two additional authentication methods: **Authenticator app** and **2FA recovery code**.",
+      "run_b_summary": "Between the two screenshots, the \"Retry GitHub Mobile\" authentication method was dismissed/timed out and the interface expanded to show alternative two-factor authentication options, specifically an **Authenticator app** and a **2FA recovery code** option, after the user clicked \"More options.\"",
+      "agreement": "partial",
+      "reason": "Description B incorrectly identifies the dismissed method as 'Retry GitHub Mobile' when Description A indicates it was a sign-in request timeout, and B adds unnecessary specificity about user clicking 'More options' that may not be supported by the actual sequence of events."
+    },
+    {
+      "file": "011.png",
+      "action": "text_summary",
+      "run_a_summary": "The screen transitioned from the **GitHub Mobile app push notification** 2FA method (with options for Authenticator app and 2FA recovery code) to the **Authenticator app** 2FA method, displaying a code entry field (XXXXXX) and a \"Verify\" button.",
+      "run_b_summary": "The GitHub two-factor authentication page transitioned from showing a **GitHub Mobile app approval request** (with options for \"Authenticator app\" and \"2FA recovery code\") to displaying a **code input field** with a \"Verify\" button, indicating the user switched to the authenticator app method.",
+      "agreement": "match",
+      "reason": "Both descriptions capture the same UI transition from GitHub Mobile app 2FA option to Authenticator app code entry field with Verify button."
+    },
+    {
+      "file": "012.png",
+      "action": "text_summary",
+      "run_a_summary": "The user successfully completed two-factor authentication on GitHub and was redirected to their personal GitHub Dashboard homepage logged in as **zhizhongs**.",
+      "run_b_summary": "The GitHub two-factor authentication modal was successfully completed and closed, revealing the GitHub Dashboard home feed with repositories, activity feed, and navigation elements.",
+      "agreement": "partial",
+      "reason": "Description A specifies the logged-in user is 'zhizhongs' while Description B omits this identifying detail, though both describe the same post-2FA dashboard state"
+    }
+  ]
+}

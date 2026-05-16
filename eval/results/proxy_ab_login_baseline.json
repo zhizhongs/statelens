@@ -1,0 +1,208 @@
+{
+  "timestamp": "2026-05-16T22:04:36.446Z",
+  "model": "claude-sonnet-4-6",
+  "haiku_model": "claude-haiku-4-5-20251001",
+  "source": {
+    "type": "screenshot_directory",
+    "path": "demo/screenshots/login_flow",
+    "mode": "proxy_ab"
+  },
+  "proxy": {
+    "host": "127.0.0.1",
+    "port": 18443,
+    "upstream": "https://api.anthropic.com"
+  },
+  "frame_count": 12,
+  "run_a": {
+    "calls": 12,
+    "input_tokens": 36255,
+    "output_tokens": 480,
+    "wall_time_ms": 53598,
+    "estimated_cost": 0.115965,
+    "per_frame": [
+      {
+        "file": "001.png",
+        "inputTokens": 1583,
+        "outputTokens": 57,
+        "summary": "This is the **GitHub login page**, featuring fields for username/email and password, a green \"Sign in\" button, and alternative sign-in options via **Google** or **Apple**, along with links to create an account or sign in with a passkey."
+      },
+      {
+        "file": "002.png",
+        "inputTokens": 3152,
+        "outputTokens": 26,
+        "summary": "The **Username or email address** input field became focused (highlighted with a blue border) in the second screenshot."
+      },
+      {
+        "file": "003.png",
+        "inputTokens": 3152,
+        "outputTokens": 34,
+        "summary": "The username field changed from being empty (with a blue active border) to containing the text \"zhizhongs\" (with a standard inactive border)."
+      },
+      {
+        "file": "004.png",
+        "inputTokens": 3152,
+        "outputTokens": 41,
+        "summary": "The username field changed from \"zhizhongs\" to \"zhizhongs@uchicago.edu\", indicating the user updated their login credential to a full email address."
+      },
+      {
+        "file": "005.png",
+        "inputTokens": 3152,
+        "outputTokens": 36,
+        "summary": "The **Password field** became focused/active (highlighted with a blue border) in the second screenshot, indicated by the appearance of a text cursor inside the field."
+      },
+      {
+        "file": "006.png",
+        "inputTokens": 3152,
+        "outputTokens": 22,
+        "summary": "A password was entered into the password field (shown as masked dots) between the two screenshots."
+      },
+      {
+        "file": "007.png",
+        "inputTokens": 3152,
+        "outputTokens": 27,
+        "summary": "The password field lost focus (the blue border highlight disappeared and the cursor is no longer visible) between the two screenshots."
+      },
+      {
+        "file": "008.png",
+        "inputTokens": 3152,
+        "outputTokens": 39,
+        "summary": "The user successfully entered their credentials on the GitHub sign-in page and was redirected to the two-factor authentication page, which is now requesting approval via the GitHub Mobile app."
+      },
+      {
+        "file": "009.png",
+        "inputTokens": 3152,
+        "outputTokens": 56,
+        "summary": "The sign-in request timed out, resulting in the addition of a red error banner (\"Sign-in request timed out\"), a \"We could not verify your identity\" message, and a green \"Retry GitHub Mobile\" button appearing on the page."
+      },
+      {
+        "file": "010.png",
+        "inputTokens": 3152,
+        "outputTokens": 43,
+        "summary": "The sign-in request timed out error was dismissed and the \"More options\" menu was expanded, revealing two additional authentication methods: **Authenticator app** and **2FA recovery code**."
+      },
+      {
+        "file": "011.png",
+        "inputTokens": 3152,
+        "outputTokens": 67,
+        "summary": "The screen transitioned from the **GitHub Mobile app push notification** 2FA method (with options for Authenticator app and 2FA recovery code) to the **Authenticator app** 2FA method, displaying a code entry field (XXXXXX) and a \"Verify\" button."
+      },
+      {
+        "file": "012.png",
+        "inputTokens": 3152,
+        "outputTokens": 32,
+        "summary": "The user successfully completed two-factor authentication on GitHub and was redirected to their personal GitHub Dashboard homepage logged in as **zhizhongs**."
+      }
+    ]
+  },
+  "run_b": {
+    "sonnet_calls": 12,
+    "sonnet_input_tokens": 20964,
+    "sonnet_output_tokens": 638,
+    "haiku_input_tokens": 6513,
+    "haiku_output_tokens": 487,
+    "total_input_tokens": 27477,
+    "wall_time_ms": 68441,
+    "estimated_cost": 0.0796204,
+    "per_frame": [
+      {
+        "file": "001.png",
+        "inputTokens": 1583,
+        "outputTokens": 44,
+        "summary": "This is the **GitHub login page**, featuring fields for username/email and password, a green \"Sign in\" button, and alternative sign-in options via Google, Apple, or a passkey.",
+        "action": "text_summary"
+      },
+      {
+        "file": "002.png",
+        "inputTokens": 1651,
+        "outputTokens": 44,
+        "summary": "Based on the StateLens observation, **no change occurred** between the two consecutive screenshots — the GitHub sign-in page remains in the same state with no interactions, inputs, or UI updates detected.",
+        "action": "skipped"
+      },
+      {
+        "file": "003.png",
+        "inputTokens": 1733,
+        "outputTokens": 82,
+        "summary": "Based on the StateLens observation, the text in the UI changed by replacing content that included \"| | / 4 / be\" with new content containing \"| / zhizhongs / (\", indicating a **username or navigation path was updated** in what appears to be a GitHub interface element, likely reflecting a switch to or input of the username \"zhizhongs.\"",
+        "action": "text_summary"
+      },
+      {
+        "file": "004.png",
+        "inputTokens": 1651,
+        "outputTokens": 38,
+        "summary": "There was **no change** between the two screenshots — both show the same GitHub Sign In page with the username \"zhizhongs\" entered and the password field empty.",
+        "action": "skipped"
+      },
+      {
+        "file": "005.png",
+        "inputTokens": 1651,
+        "outputTokens": 48,
+        "summary": "There was **no change** between the two screenshots — both show the same GitHub sign-in page with `zhizhongs@uchicago.edu` entered in the username field and an empty password field.",
+        "action": "skipped"
+      },
+      {
+        "file": "006.png",
+        "inputTokens": 1651,
+        "outputTokens": 53,
+        "summary": "There was **no change** between the two screenshots — the GitHub sign-in page remains in the same state, with `zhizhongs@uchicago.edu` entered in the username field and the password field empty and focused.",
+        "action": "skipped"
+      },
+      {
+        "file": "007.png",
+        "inputTokens": 1651,
+        "outputTokens": 50,
+        "summary": "There was **no change** between the two screenshots — the GitHub sign-in page remains identical, with `zhizhongs@uchicago.edu` in the username field and a password entered in the password field.",
+        "action": "skipped"
+      },
+      {
+        "file": "008.png",
+        "inputTokens": 1792,
+        "outputTokens": 50,
+        "summary": "The user successfully submitted their GitHub login credentials (email: zhizhongs@uchicago.edu) and progressed from the sign-in form to a two-factor authentication screen requiring approval via the GitHub Mobile app.",
+        "action": "text_summary"
+      },
+      {
+        "file": "009.png",
+        "inputTokens": 1735,
+        "outputTokens": 69,
+        "summary": "Between the two screenshots, the GitHub two-factor authentication page transitioned from awaiting mobile app approval to displaying a **timeout error**, with the original waiting message replaced by \"Sign-in request timed out\" and \"We could not verify your identity,\" along with a **\"Retry GitHub Mobile\"** button appearing.",
+        "action": "text_summary"
+      },
+      {
+        "file": "010.png",
+        "inputTokens": 1802,
+        "outputTokens": 62,
+        "summary": "Between the two screenshots, the \"Retry GitHub Mobile\" authentication method was dismissed/timed out and the interface expanded to show alternative two-factor authentication options, specifically an **Authenticator app** and a **2FA recovery code** option, after the user clicked \"More options.\"",
+        "action": "text_summary"
+      },
+      {
+        "file": "011.png",
+        "inputTokens": 1790,
+        "outputTokens": 66,
+        "summary": "The GitHub two-factor authentication page transitioned from showing a **GitHub Mobile app approval request** (with options for \"Authenticator app\" and \"2FA recovery code\") to displaying a **code input field** with a \"Verify\" button, indicating the user switched to the authenticator app method.",
+        "action": "text_summary"
+      },
+      {
+        "file": "012.png",
+        "inputTokens": 2274,
+        "outputTokens": 32,
+        "summary": "The GitHub two-factor authentication modal was successfully completed and closed, revealing the GitHub Dashboard home feed with repositories, activity feed, and navigation elements.",
+        "action": "text_summary"
+      }
+    ]
+  },
+  "savings": {
+    "token_reduction_pct": 24.21183285064129,
+    "cost_reduction_pct": 31.341008062777565,
+    "latency_reduction_pct": -27.69319750736968
+  },
+  "pricing": {
+    "claude-sonnet-4-6": {
+      "in": 3,
+      "out": 15
+    },
+    "claude-haiku-4-5-20251001": {
+      "in": 0.8,
+      "out": 4
+    }
+  }
+}
