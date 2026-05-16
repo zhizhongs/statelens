@@ -12,6 +12,13 @@ See [`DESIGN.md`](./DESIGN.md) for the full design document.
 
 Hackathon scaffold. Not yet functional. See [`DESIGN.md` Section 8](./DESIGN.md) for the 48-hour build roadmap.
 
+## For the build team
+
+Two-person split with phased merge checkpoints:
+- [`docs/ROLE_PIPELINE.md`](./docs/ROLE_PIPELINE.md) — Person A (pipeline library)
+- [`docs/ROLE_DISTRIBUTION.md`](./docs/ROLE_DISTRIBUTION.md) — Person B (MCP server, demo, measurement harness)
+- [`docs/README.md`](./docs/README.md) — phase timeline summary
+
 ## Install
 
 ```bash
