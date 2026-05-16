@@ -106,6 +106,8 @@ current screenshot
 - selective VLM explanation for high-value visual-only states
 - cumulative Haiku usage accounting for honest measurement
 - per-session semantic timeline
+- action-failure detection: expected-change actions that produce no UI change emit a structured `action_failed` event
+- multi-language OCR: `STATELENS_OCR_LANGS` configures Tesseract for non-English UI flows, defaults to English
 
 **Visual direction:**  
 Six-stage architecture diagram with local stages in green and optional VLM in amber.
@@ -201,6 +203,20 @@ This helps developers answer:
 - which frames actually needed vision?
 - where did the agent waste work?
 
+The "did an action do nothing?" question is now a first-class event. When the agent passes an `actionLabel` it expected to mutate the UI and the screen does not change, StateLens emits:
+
+```json
+{
+  "changed": false,
+  "keyframe": true,
+  "event_type": "action_failed",
+  "event_summary": "Action \"click_submit\" produced no meaningful UI change; the action may have failed or the page may be stuck",
+  "vlm_called": false
+}
+```
+
+No OCR, no VLM, no false-positive `no_change` hiding a stuck page.
+
 **Visual direction:**  
 Timeline rail with event badges and skipped-frame markers.
 
@@ -234,12 +250,16 @@ if (route.route === 'use_full_vision') {
 }
 ```
 
+The `actionLabel` is no longer just a hint. Mutating labels (`click_submit`, `save_*`, `fill_*`, `expect_change:*`) flip an unchanged screen from `no_change` to `action_failed`. Passive labels (`wait`, `observe:*`, `passive:*`) keep their quiet path.
+
 **What is shipped now:**
 
 - generic routing helper
 - Playwright-like screenshot adapter
 - conservative fallbacks for invalid screenshots and analysis errors
 - optional screenshot-base64 MCP path for agents that hold images in memory
+- action-label classifier that distinguishes mutating from passive actions
+- `STATELENS_OCR_LANGS` env var for non-English UI flows
 
 **Visual direction:**  
 Decision tree with three routes: skip, text, full vision.
@@ -273,6 +293,8 @@ Planned integration:
 - compact healer context for failures
 - screenshots only forwarded when route is `use_full_vision`
 - Stagehand adapter as a second target
+
+The Phase 4 `action_failed` event is the first healer signal already shipped: when the test agent clicks submit and the screen does not move, the timeline records *the action that did nothing* — not just a quiet `no_change` gap.
 
 **Positioning:**  
 Playwright snapshots already handle normal DOM-heavy tests efficiently. StateLens focuses on screenshot-heavy fallback, visual UI, canvas, charts, custom widgets, and healer loops.
@@ -337,6 +359,8 @@ The thesis is simple: do not make every model relearn the same unchanged screen.
 - route helper for custom agents
 - Playwright-like capture adapter
 - live demo script
+- action-failure detection via `actionLabel` classifier (`action_failed` event)
+- multi-language OCR via `STATELENS_OCR_LANGS`
 
 ### Pitch As Roadmap
 
