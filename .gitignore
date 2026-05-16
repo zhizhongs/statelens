@@ -24,3 +24,6 @@ eval/results/*.json
 demo/recordings/
 *.mp4
 *.mov
+
+# Tesseract.js auto-downloads OCR language models at runtime
+*.traineddata
