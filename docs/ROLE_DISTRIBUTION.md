@@ -73,12 +73,13 @@ Pin `DESIGN.md` as `@` context in every Cursor Composer session.
      "mcpServers": {
        "statelens": {
          "command": "node",
-         "args": ["/Users/midosang/statelens/dist/server.js"]
+         "args": ["/Users/midosang/statelens/dist/src/server.js"],
+         "env": { "ANTHROPIC_API_KEY": "sk-ant-..." }
        }
      }
    }
    ```
-   Restart Cursor. Open the MCP panel — you should see 4 tools.
+   Note: TypeScript output preserves the `src/` prefix, so the path is `dist/src/server.js` not `dist/server.js`. Restart Cursor. Open the MCP panel — you should see 4 tools.
 
 ### Phase 1 Cursor Prompts
 
