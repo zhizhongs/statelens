@@ -1,7 +1,7 @@
 // Stage 6: Session Timeline Assembly — DESIGN.md Section 4.7
 // Person A: per-session event log + cost metrics.
 
-import type { Buffer } from 'node:buffer';
+import { Buffer } from 'node:buffer';
 import type { TimelineEvent, TimelineResult } from './index.js';
 
 export class SessionTimeline {
@@ -20,7 +20,7 @@ export class SessionTimeline {
   }
 
   setPrevScreenshot(buf: Buffer): void {
-    this.prevScreenshot = buf;
+    this.prevScreenshot = Buffer.from(buf);
   }
 
   addEvent(event: TimelineEvent): void {
@@ -44,7 +44,14 @@ export class SessionTimeline {
       vlm_calls_saved: this.totalScreenshots - this.vlmCalls,
       reduction_pct: reductionPct,
       estimated_tokens_saved: (this.totalScreenshots - this.vlmCalls) * 1200,
-      events: this.events,
+      events: this.events.map((event) => ({
+        ...event,
+        text_diff: {
+          added: [...event.text_diff.added],
+          removed: [...event.text_diff.removed],
+        },
+        regions: event.regions.map((region) => ({ ...region })),
+      })),
     };
   }
 }

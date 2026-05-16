@@ -22,7 +22,7 @@ vi.mock('tesseract.js', () => ({
   },
 }));
 
-import { ocrDiff, resetOcrWorker } from '../../src/pipeline/ocrDiff.js';
+import { ocrDiff, prewarmOcrWorker, resetOcrWorker } from '../../src/pipeline/ocrDiff.js';
 
 describe('ocrDiff', () => {
   beforeEach(async () => {
@@ -37,6 +37,12 @@ describe('ocrDiff', () => {
     const result = await ocrDiff(img, img, []);
     expect(result).toEqual({ added: [], removed: [] });
     expect(ocrMock.workerCreateCalls.value).toBe(0);
+    expect(ocrMock.recognizeCalls.value).toBe(0);
+  });
+
+  it('prewarmOcrWorker initializes the worker before the first OCR diff', async () => {
+    await prewarmOcrWorker();
+    expect(ocrMock.workerCreateCalls.value).toBe(1);
     expect(ocrMock.recognizeCalls.value).toBe(0);
   });
 
@@ -71,6 +77,29 @@ describe('ocrDiff', () => {
       { x: 10, y: 10, w: 100, h: 30, label: 'content area' },
     ]);
     expect(result.added).toEqual([]);
+    expect(result.removed).toEqual([]);
+  });
+
+  it('resizes the previous screenshot before cropping mismatched dimensions', async () => {
+    const prev = await solidPng(200, 100, '#ffffff');
+    const curr = await solidPng(400, 200, '#ffffff');
+    ocrMock.queue.push('', 'Welcome back');
+    const result = await ocrDiff(prev, curr, [
+      { x: 300, y: 20, w: 80, h: 40, label: 'right panel' },
+    ]);
+    expect(result.added).toContain('Welcome back');
+    expect(ocrMock.recognizeCalls.value).toBe(2);
+  });
+
+  it('normalizes unicode OCR lines without stripping non-ASCII text', async () => {
+    const prev = await solidPng(200, 100, '#ffffff');
+    const curr = await solidPng(200, 100, '#ffffff');
+    ocrMock.queue.push('Cafe\u0301\u0000 menu', 'Café menu\n送信\t完了');
+    const result = await ocrDiff(prev, curr, [
+      { x: 10, y: 10, w: 100, h: 30, label: 'content area' },
+    ]);
+    expect(result.added).toContain('送信 完了');
+    expect(result.added).not.toContain('Café menu');
     expect(result.removed).toEqual([]);
   });
 });

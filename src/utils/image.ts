@@ -15,3 +15,11 @@ export async function getImageDimensions(buffer: Buffer): Promise<ImageDimension
   }
   return { width: meta.width, height: meta.height };
 }
+
+export async function tryGetImageDimensions(buffer: Buffer): Promise<ImageDimensions | null> {
+  try {
+    return await getImageDimensions(buffer);
+  } catch {
+    return null;
+  }
+}
