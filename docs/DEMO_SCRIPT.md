@@ -11,10 +11,10 @@ Task: 12-frame login flow analysis  •  Model: claude-sonnet-4-6
 ─────────────────────────────────────────────────────────────────
 Baseline (raw images)           StateLens compression
   12 API calls                    3 Sonnet text + 4 Haiku vision
-  19,008 input tokens             14,249 input tokens
-  $0.0640                         $0.0196
+  19,008 input tokens             5,353 input tokens
+  $0.0640                         $0.0138
 ─────────────────────────────────────────────────────────────────
-  → 69% cost reduction, 25% input-token reduction
+  → 78% cost reduction, 72% input-token reduction
   → 5 of 12 frames filtered entirely (zero AI calls)
 ```
 

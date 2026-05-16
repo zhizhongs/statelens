@@ -12,9 +12,21 @@ import type { ChangedRegion, VlmUsage } from './index.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 200;
+// Downscale screenshots before sending to Haiku. Anthropic prices images by
+// tile count, which scales with resolution. 768px on the long edge keeps UI
+// text readable while dropping per-image input tokens ~3-4x vs full-res.
+const VLM_MAX_EDGE = 768;
 
 let cumulativeUsage: VlmUsage = { input_tokens: 0, output_tokens: 0 };
 let client: Anthropic | null = null;
+
+async function prepareForVlm(buffer: Buffer): Promise<{ data: string; mediaType: 'image/png' }> {
+  const resized = await sharp(buffer)
+    .resize(VLM_MAX_EDGE, VLM_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+  return { data: resized.toString('base64'), mediaType: 'image/png' };
+}
 
 export interface VlmExplanation {
   eventType: string;
@@ -30,16 +42,6 @@ function getClient(): Anthropic {
     client = new Anthropic();
   }
   return client;
-}
-
-async function detectMediaType(buffer: Buffer): Promise<'image/jpeg' | 'image/png'> {
-  try {
-    const meta = await sharp(buffer).metadata();
-    if (meta.format === 'jpeg' || meta.format === 'jpg') return 'image/jpeg';
-  } catch {
-    // fall through to default
-  }
-  return 'image/png';
 }
 
 function buildPrompt(regions: ChangedRegion[]): string {
@@ -84,9 +86,9 @@ export async function vlmExplain(
   regions: ChangedRegion[]
 ): Promise<VlmExplanation> {
   const anthropic = getClient();
-  const [prevMedia, currMedia] = await Promise.all([
-    detectMediaType(prevBuffer),
-    detectMediaType(currBuffer),
+  const [prev, curr] = await Promise.all([
+    prepareForVlm(prevBuffer),
+    prepareForVlm(currBuffer),
   ]);
 
   const response = await anthropic.messages.create({
@@ -98,19 +100,11 @@ export async function vlmExplain(
         content: [
           {
             type: 'image',
-            source: {
-              type: 'base64',
-              media_type: prevMedia,
-              data: prevBuffer.toString('base64'),
-            },
+            source: { type: 'base64', media_type: prev.mediaType, data: prev.data },
           },
           {
             type: 'image',
-            source: {
-              type: 'base64',
-              media_type: currMedia,
-              data: currBuffer.toString('base64'),
-            },
+            source: { type: 'base64', media_type: curr.mediaType, data: curr.data },
           },
           { type: 'text', text: buildPrompt(regions) },
         ],
