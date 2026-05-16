@@ -155,6 +155,18 @@ await observe(screenshot, sessionId, 'click_submit');
 
 The pipeline classifies labels as `mutating` (`click`, `submit`, `login`, `checkout`, `delete`, ...), `passive` (`hover`, `scroll`, `wait`, ...), or unknown. When a mutating action produces no visual change, the observation is tagged with an `action_failed` event type instead of `no_change`. See [`docs/PIPELINE_PHASE4_IMPLEMENTATION.md`](./docs/PIPELINE_PHASE4_IMPLEMENTATION.md) for the classifier rules.
 
+## Demo scenarios
+
+The repo ships with two prerecorded screenshot sequences under `demo/screenshots/`. Both are real captures, not synthetic — they exercise the full pipeline against actual web UIs.
+
+**`login_flow/` — 12 frames, GitHub authentication**
+A user lands on `github.com/login`, types credentials, submits, hits a 2FA challenge, gets a "Sign-in request timed out" error, switches to the authenticator-app code path, types the 6-digit code, and lands on their dashboard. This flow has natural redundancy (cursor blinks, identical-frame moments between actions), so the visual gate filters 5 of 12 frames.
+
+**`checkout_flow/` — 10 frames, Zara checkout**
+A user starts at a Zara cart (`CONTINUE (2)`), fills a shipping form (name, address, ZIP, email), picks a delivery method (standard / express / store pickup), reviews the order summary, and lands on the payment method picker showing Credit/Debit, PayPal, Afterpay, Apple Pay, Google Pay options. Every frame is meaningfully different — zero gate-filterable redundancy. This flow stress-tests the pipeline on form-heavy UIs with stylized fonts (Zara's UI mis-OCRs in places), which is why the Phase 4 tuning was needed.
+
+The two scenarios were chosen to be **adversarial against each other**: login has lots of redundant frames and clear text changes, checkout has zero redundancy and tricky OCR. If StateLens saves 80%+ tokens on both, the savings aren't a quirk of one well-suited flow.
+
 ## Headline measurements
 
 Real Anthropic API token counts, two screenshot scenarios, baseline = raw screenshots through Sonnet with a fair "what changed" prompt (prev + curr image per frame):
