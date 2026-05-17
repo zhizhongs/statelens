@@ -337,7 +337,23 @@ export async function observe(
       });
     }
 
-    // Stage 3: OCR text diff on changed regions only
+    // Stage 3: OCR text diff on changed regions only. When parallel-VLM is
+    // enabled, we speculatively kick off Haiku at the same time so the two
+    // serial-API costs (~1s OCR + ~1.7s Haiku = 2.7s) collapse into
+    // max(OCR, Haiku) ≈ 1.7s on the critical path. Trade-off: Haiku fires
+    // even on frames the importance scorer would have routed to the
+    // text-sufficient path, costing 1-2 extra Haiku calls per session
+    // (~$0.003 each on the login flow).
+    const parallelVlmEnabled =
+      process.env.STATELENS_PROXY_PARALLEL_VLM === '1' && regions.length > 0;
+    let speculativeVlm: Promise<{ ok: true; result: Awaited<ReturnType<typeof vlmExplain>> } | { ok: false }> | null = null;
+    if (parallelVlmEnabled) {
+      speculativeVlm = vlmExplain(prev, screenshotBuffer, regions).then(
+        (result) => ({ ok: true as const, result }),
+        () => ({ ok: false as const })
+      );
+    }
+
     let textDiff = emptyTextDiff();
     let ocrError: unknown = null;
     if (regions.length > 0) {
@@ -408,6 +424,20 @@ export async function observe(
           /* async, no-op on failure */
         });
         vlmCalled = true; // counted because the call will happen, just async
+      } else if (speculativeVlm) {
+        // Parallel VLM mode: Haiku was already kicked off in parallel with OCR.
+        // Awaiting here just collects the result — most of the time Haiku is
+        // already done.
+        const settled = await timedStage(session, 'stage5.vlmExplain.await', () => speculativeVlm!);
+        if (settled.ok) {
+          eventType = settled.result.eventType;
+          eventSummary = settled.result.summary;
+          vlmCalled = true;
+        } else {
+          eventType = inferEventType(textDiff);
+          eventSummary = `${buildTextSummary(textDiff, regions)}; VLM explanation unavailable (speculative call failed)`;
+          vlmCalled = true; // call still happened, the failure just landed late
+        }
       } else {
         // Stage 5: selective VLM. If the model/API fails, return a local fallback
         // keyframe instead of throwing out of the user-facing pipeline.

@@ -11,10 +11,11 @@ import sharp from 'sharp';
 import type { ChangedRegion, VlmUsage } from './index.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
-// Haiku response is a small JSON ({event_type, summary, important_text})
-// — empirically ~60-90 tokens. 120 leaves margin without paying for an
-// allocation Sonnet generation latency budget we never use.
-const MAX_TOKENS = 120;
+// Haiku response is a JSON object. Original budget was 200; trimmed to 120
+// when summaries were short delta-blurbs. The updated prompt asks for
+// specific, full-screen descriptions to match what the agent would have
+// gotten from Sonnet, which needs ~150-180 output tokens. 200 leaves margin.
+const MAX_TOKENS = 200;
 // Downscale screenshots before sending to Haiku. Anthropic prices images by
 // tile count, which scales with resolution. 768px on the long edge keeps UI
 // text readable while dropping per-image input tokens ~3-4x vs full-res.
@@ -61,16 +62,27 @@ function getClient(): Anthropic {
 }
 
 function buildPrompt(regions: ChangedRegion[]): string {
-  return `You are analyzing two consecutive UI screenshots.
-Describe only the meaningful UI state change in one sentence.
-Changed region: ${JSON.stringify(regions)}
+  // The "summary" field is what a downstream Sonnet (or synthesized response
+  // in fast mode) will surface to the agent. Agents typically ask
+  // "describe what is on this UI" — frame Haiku's answer to MATCH that
+  // shape, not a delta-only blurb. Including the prior screen as context
+  // helps Haiku ground specific elements (button labels, field values,
+  // error messages) instead of generic "UI changed" boilerplate.
+  return `You are looking at two consecutive UI screenshots from a computer-use agent.
+The first image is the previous state; the second is the current state.
 
-Focus on: error messages, modals, button state changes, form changes, navigation, content loading, layout shifts.
+Write a one-sentence description of WHAT IS ON THE CURRENT SCREEN, written
+the way an answer to "describe what is on this UI screenshot" would read.
+Use the previous screen as context but make the sentence about the current
+state, not just the change. Be specific: name visible buttons, error
+messages, field contents, page titles, and any state changes.
 
-Return JSON only:
+Changed regions (for reference): ${JSON.stringify(regions)}
+
+Return JSON only, no prose outside the object:
 {
   "event_type": "short_snake_case",
-  "summary": "one concise sentence",
+  "summary": "one specific sentence describing the current UI state",
   "important_text": ["key visible text"]
 }`;
 }
