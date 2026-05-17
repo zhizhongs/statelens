@@ -168,6 +168,21 @@ Tool use is voluntary — the agent has to decide to call StateLens tools. That'
 
 ## Use In Process
 
+### When to reach for the library (vs the proxy)
+
+The proxy is the default recommendation — one env var, zero code change. Reach for the in-process library when you need one of these:
+
+| If you... | The library gives you... |
+|---|---|
+| Control the agent loop and want **maximum savings** (~82-90% vs the proxy's ~46-59%) | The freedom to `return` and make **zero** model calls on no-change frames, instead of returning a synthesized Anthropic response |
+| Use **a model other than Anthropic** (OpenAI, Gemini, local Llama-Vision) | A model-agnostic API — `observe()` returns a route decision plus text observation; you wire in whatever model you want |
+| Run **UI tests with AI in the loop** (Stagehand-style, browserbase, custom AI-augmented Playwright) | The `action_failed` signal — Playwright says "click succeeded," StateLens says "the UI actually responded" — plus a session timeline you can attach to failure artifacts |
+| Need to **branch behavior per route** (e.g., write the screenshot to disk on `use_full_vision`, retry on `action_failed`) | Direct access to the routing decision before any model call happens |
+
+If none of those apply, prefer the proxy — it's strictly less integration work.
+
+### Code
+
 Use the TypeScript adapter when you control the agent loop.
 
 ```ts
