@@ -40,7 +40,7 @@
   html, body {
     width: 100%;
     height: 100%;
-    background: #050811;
+    background: var(--ink);
     color: var(--text);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     overflow: hidden;
@@ -67,7 +67,7 @@
     position: absolute;
     inset: 0;
     background: var(--bg);
-    padding: 36px 52px 28px;
+    padding: 30px 46px 24px;
     display: none;
     flex-direction: column;
     overflow: hidden;
@@ -81,7 +81,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
     color: var(--dim);
@@ -94,13 +94,13 @@
 
   /* Typography */
   h1 {
-    font-size: 38px;
+    font-size: 34px;
     font-weight: 800;
     line-height: 1.1;
     letter-spacing: -0.02em;
     margin-bottom: 6px;
   }
-  h1.huge { font-size: 64px; line-height: 1.05; }
+  h1.huge { font-size: 58px; line-height: 1.04; }
   h2 {
     font-size: 22px;
     font-weight: 700;
@@ -201,7 +201,7 @@
   /* Cards / Layout */
   .row { display: flex; gap: 14px; align-items: stretch; }
   .col { flex: 1; min-width: 0; }
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
   .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
 
@@ -209,7 +209,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
   .card.tight { padding: 10px 12px; }
   /* Accent cards: solid surface, accented left rail */
@@ -333,10 +333,10 @@
     border-radius: 50%;
   }
   .hero .tagline {
-    font-size: 21px;
+    font-size: 19px;
     color: var(--muted);
     margin-top: 8px;
-    margin-bottom: 22px;
+    margin-bottom: 18px;
     line-height: 1.35;
     max-width: 980px;
   }
@@ -350,8 +350,37 @@
     line-height: 1.5;
   }
   .hero .proof strong { color: var(--primary); }
+  .hero .proof-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .hero .proof-tag {
+    display: inline-block;
+    min-width: 78px;
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-weight: 600;
+  }
+  .hero .proof-tag.proxy {
+    color: var(--ink);
+    background: var(--metric);
+    border-color: var(--metric);
+  }
+  .hero .proof-num { color: var(--metric); font-weight: 700; margin-left: auto; }
+  .hero .proof-note { color: var(--muted); font-weight: 400; }
   .hero .pipeline-mini {
-    margin-top: 22px;
+    margin-top: 18px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
     color: var(--muted);
@@ -387,7 +416,10 @@
     padding: 8px 14px;
     border-radius: 999px;
     border: 1px solid var(--border);
+    opacity: 0.42;
+    transition: opacity 0.15s ease;
   }
+  .hud:hover { opacity: 1; }
   .hud button {
     background: transparent;
     color: var(--muted);
@@ -408,6 +440,7 @@
 
   /* Help overlay */
   .help {
+    display: none;
     position: fixed;
     top: 16px;
     left: 20px;
@@ -467,6 +500,62 @@
   .arrow-flow .step.cyan { color: var(--accent); border-color: var(--accent); }
   .arrow-flow .step.red  { color: var(--warn); border-color: var(--warn); }
   .arrow-flow .arrow { color: var(--dim); }
+
+  /* Evidence ladder */
+  .evidence-ladder {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .evidence-rung {
+    min-height: 92px;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .evidence-rung .rung-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .evidence-rung .rung-title {
+    margin-top: 6px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+  .evidence-rung .rung-copy {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 10.5px;
+    line-height: 1.3;
+  }
+  .evidence-rung.current { border-color: var(--accent); }
+  .evidence-rung.primary { border-color: var(--metric); }
+  .evidence-rung.planned { border-style: dashed; border-color: var(--primary); }
+  .evidence-rung.full { border-color: var(--warn); }
+  .rung-chip {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    padding: 1px 5px;
+    font-size: 8px;
+  }
+  .rung-chip.current { color: var(--accent); }
+  .rung-chip.planned { color: var(--primary); }
+  .rung-chip.full { color: var(--warn); }
 
   /* Tier list */
   .tier {
@@ -649,17 +738,21 @@
       <div class="hero">
         <div class="logo-mark"><span class="dot"></span> STATELENS</div>
         <h1 class="huge">The observation compression layer for UI agents.</h1>
-        <p class="tagline">Computer-use agents waste money re-reading screenshots where nothing meaningful changed. <strong>StateLens turns screenshot streams into semantic state changes before the expensive model sees them.</strong></p>
+        <p class="tagline">Computer-use agents waste money re-reading screenshots where nothing meaningful changed. <strong>StateLens turns each frame into the cheapest sufficient evidence before the expensive model sees it.</strong></p>
         <div class="proof">
-          <strong>Proof point —</strong> 81–90% cost reduction with 78–100% event-capture accuracy, measured with real Anthropic API usage. Useful inside Claude Code or any local service — and <strong>massively more useful in long-running agentic loops</strong>: computer-use, browser automation, Playwright-driven test agents. Drops in via one <code>baseURL</code> change.
+          <div style="margin-bottom: 8px;"><strong>Proof — real Anthropic API tokens, all reproducible.</strong></div>
+          <div class="proof-row"><span class="proof-tag">harness</span> login <span class="proof-num">−90.1% cost · 100% lenient · 0 misses</span></div>
+          <div class="proof-row"><span class="proof-tag">harness</span> checkout <span class="proof-num">−81.2% cost · 77.8% lenient</span></div>
+          <div class="proof-row"><span class="proof-tag proxy">proxy E2E</span> prev+curr per turn <span class="proof-num">−31.3% cost · 100% lenient · 0 misses</span></div>
+          <div class="proof-row"><span class="proof-tag proxy">proxy E2E</span> single-image per turn <span class="proof-num">−59.4% cost</span> <span class="proof-note">· the shape real computer-use loops use</span></div>
         </div>
         <div class="pipeline-mini">
-          computer-use loop <span>→</span> StateLens proxy <span>→</span> compact events <span>→</span> agent reasoning
+          computer-use loop <span>→</span> StateLens proxy <span>→</span> stub · event · crop · full vision <span>→</span> agent reasoning
         </div>
       </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        Not another browser agent — the layer every browser or computer-use agent should call before spending vision tokens. Works inside Claude Code and local services today; the killer wedge is long-running agentic loops (computer-use, automated browser testing) where savings amortize and dominate.
+        Not another browser agent — the observation router every computer-use agent should pass through before spending vision tokens. Text cards are one route, not the whole architecture: the product is cheapest sufficient evidence.
       </div>
     </section>
 
@@ -704,12 +797,38 @@
       </div>
 
       <div class="card mt">
-        <p><strong>Before:</strong> <span class="accent-red">huge screenshot</span> · ≈3,000 input tokens · base64 image · paid every turn</p>
-        <p class="mt-sm"><strong>After:</strong> <span class="accent-green">small JSON event card</span> · ≈50 input tokens · plain text · cached cleanly</p>
+        <h3>After StateLens: an evidence ladder, not text-only compression</h3>
+        <div class="evidence-ladder mt-sm">
+          <div class="evidence-rung current">
+            <div class="rung-top"><span>01</span><span class="rung-chip current">now</span></div>
+            <div class="rung-title">No-change stub</div>
+            <div class="rung-copy">Zero vision when the frame is redundant.</div>
+          </div>
+          <div class="evidence-rung primary">
+            <div class="rung-top"><span>02</span><span class="rung-chip current">now</span></div>
+            <div class="rung-title">Event card</div>
+            <div class="rung-copy">Cheap semantic state for forms, errors, nav.</div>
+          </div>
+          <div class="evidence-rung planned">
+            <div class="rung-top"><span>03</span><span class="rung-chip planned">next</span></div>
+            <div class="rung-title">Changed crop</div>
+            <div class="rung-copy">Pixels only where visual grounding matters.</div>
+          </div>
+          <div class="evidence-rung planned">
+            <div class="rung-top"><span>04</span><span class="rung-chip planned">next</span></div>
+            <div class="rung-title">Context snapshot</div>
+            <div class="rung-copy">Low-res or annotated frame for layout shifts.</div>
+          </div>
+          <div class="evidence-rung full">
+            <div class="rung-top"><span>05</span><span class="rung-chip full">safe</span></div>
+            <div class="rung-title">Full vision</div>
+            <div class="rung-copy">Fail open for high-change or low-confidence screens.</div>
+          </div>
+        </div>
       </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        Two-beat pivot: waste is using full vision per frame; the cheaper question first restructures observation from pixels to state transitions.
+        Two-beat pivot: waste is using full vision per frame. The better framing is an evidence ladder: text is cheap and often enough, crops preserve local pixels, full vision remains the safe route.
       </div>
     </section>
 
@@ -720,7 +839,7 @@
         <span class="num">03 / 08</span>
       </div>
       <h2 class="subtitle">What We Built</h2>
-      <h1>Six-stage compression pipeline · drop-in Anthropic-compatible proxy.</h1>
+      <h1>Six-stage evidence router · drop-in Anthropic-compatible proxy.</h1>
 
       <div class="pipeline mt-sm">
         <div class="pipe-stage local"><span class="n">STAGE 1</span><strong>Visual gate</strong><br/>hash + pixelmatch</div>
@@ -771,7 +890,7 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
       </table>
       <div class="note">
         <div class="label">Speaker note</div>
-        Pipeline is model-external. Proxy is primary delivery — reproduces harness savings directly. Leverage scales with loop length.
+        Pipeline is model-external. Proxy is primary delivery — reproduces harness savings directly. The product direction is not text-only; it is evidence routing with fail-open full vision.
       </div>
     </section>
 
@@ -994,14 +1113,14 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
           <pre class="compact mt-sm"><code>computer-use agent acts
   → captures screenshot
   → calls Anthropic <span style="color: var(--metric);">via StateLens proxy</span>
-  → proxy: <span style="color: var(--metric);">gate · OCR · score · selective Haiku</span>
-  → upstream sees text observation, not pixels
+  → proxy: <span style="color: var(--metric);">gate · OCR · score · evidence route</span>
+  → upstream sees cheapest sufficient evidence
   → agent reasons cheaply, loops 100× more</code></pre>
           <ul class="mt-sm">
             <li><strong>No code change</strong> — drop a baseURL into whatever computer-use SDK you're using</li>
             <li><strong>Savings compound with loop length</strong> — per-frame compression dominates as sessions grow</li>
+            <li><strong>Not text-only</strong> — route can evolve from event card to crop to full vision</li>
             <li><strong>Action-failure detection</strong> — <code>action_failed</code> is the first signal a healer needs</li>
-            <li><strong>Observable</strong> — timeline doubles as failure context for retries and bug reports</li>
           </ul>
         </div>
         <div class="card amber">
@@ -1053,6 +1172,7 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
             <h3>Moat in practice</h3>
             <ul>
               <li>local-first diffing pipeline + structured event timeline</li>
+              <li>evidence ladder: skip, event card, changed crop, context snapshot, full vision</li>
               <li>honest VLM accounting (Haiku counted against us)</li>
               <li><strong>drop-in proxy</strong> — best leverage in long-running agentic / computer-use loops</li>
               <li>MCP adapter for editor observability (Claude Code, Cursor)</li>
@@ -1167,7 +1287,7 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
       const w = window.innerWidth;
       const h = window.innerHeight;
       const sw = 1280, sh = 720;
-      const padding = 40;
+      const padding = 16;
       const scale = Math.min((w - padding) / sw, (h - padding) / sh);
       stage.style.transform = `scale(${scale})`;
     }
