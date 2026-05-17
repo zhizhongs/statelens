@@ -18,6 +18,11 @@
 
 set -euo pipefail
 
+# Always run from repo root so `dist/demo/run_demo.js` resolves correctly
+# regardless of where the script is invoked from.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+
 PORT=8443
 PROXY_LOG=/tmp/statelens-demo-proxy.log
 DIRECT_LOG=/tmp/statelens-demo-direct.log
