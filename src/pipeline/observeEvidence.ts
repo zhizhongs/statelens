@@ -32,12 +32,17 @@ import {
 // skip_vision / use_text_observation / use_full_vision and the crops would be
 // thrown away. Encoding 1-3 PNG crops can take 100-400ms; on a busy session
 // that adds up fast, so the cheapest crop is the one we never build.
+//
+// IMPORTANT: keep this in lock-step with `routeEvidenceObservation()`. The
+// router now prefers evidence routes whenever at least one region is anchored
+// (source !== 'heuristic'), even on low aggregate confidence — so this gate
+// only filters out the cases where crops are *guaranteed* to be discarded:
+// nothing changed, or every region is heuristic-only.
 function wouldUseCrops(
   labeled: { regions: EvidenceRegion[]; confidence: ObservationConfidence },
   maxCrops: number
 ): boolean {
   if (labeled.regions.length === 0) return false;
-  if (labeled.confidence === 'low') return false;
   // Heuristic-only labels route to use_text_observation in the router, so
   // crops would be wasted.
   if (!labeled.regions.some((r) => r.source !== 'heuristic')) return false;

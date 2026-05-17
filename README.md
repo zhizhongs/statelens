@@ -9,7 +9,7 @@ Use it when you are building or running screenshot-heavy browser/computer-use ag
 ## Install
 
 ```bash
-npm install -g statelens
+npm install -g statelens-sdk
 ```
 
 Or from source:
@@ -171,7 +171,7 @@ MCP caveat: tool use is voluntary. For transparent cost reduction, prefer the pr
 Use the TypeScript adapter when you control the agent loop.
 
 ```ts
-import { captureAndRoute } from 'statelens';
+import { captureAndRoute } from 'statelens-sdk';
 
 const { observation, route, screenshot } = await captureAndRoute(page, {
   sessionId: 'login_flow',
@@ -195,7 +195,7 @@ The adapter accepts any object with `screenshot(): Promise<Buffer>`, including P
 The lower-level routing helper is also available:
 
 ```ts
-import { observe, routeObservation } from 'statelens';
+import { observe, routeObservation } from 'statelens-sdk';
 
 const observation = await observe(screenshotBuffer, 'session-id', 'click_submit');
 const route = routeObservation(observation);
@@ -259,19 +259,37 @@ screenshot
 
 ## Results
 
-Measured with real Anthropic API token counts:
+All numbers are measured with real Anthropic API token counts (no estimates). The harness includes internal Haiku usage, so savings are not hidden by shifting work to a cheaper model.
+
+### Pipeline measurements (in-process eval, baseline = prev+curr screenshots to Sonnet)
 
 | Scenario | Frames | Token reduction | Cost reduction | Accuracy (lenient) |
 |---|---:|---:|---:|---:|
 | Login flow | 12 | 81.9% | 90.1% | 100.0% |
 | Checkout flow | 10 | 69.9% | 81.2% | 77.8% |
 
-The measurement harness includes internal Haiku usage, so the savings are not hidden by shifting work to a cheaper model.
+### End-to-end proxy A/B (login flow, 12 frames, real HTTP round-trip through `statelens proxy`)
 
-See [`RESULTS.md`](./RESULTS.md) for the full methodology and [`docs/DEMO_AND_EVAL.md`](./docs/DEMO_AND_EVAL.md) for demo and reproduction commands.
+Same code on both sides — the only difference between Run A and Run B is the `baseURL` of the Anthropic client.
+
+| Agent pattern | Token reduction | Cost reduction | Accuracy (strict) | Accuracy (lenient) |
+|---|---:|---:|---:|---:|
+| Single-image-per-turn (Claude Code / Cursor / computer-use style) | **46.7%** | **59.4%** | — | — |
+| Prev+curr per turn (change-detection agents) | **24.2%** | **31.3%** | 75.0% | **100.0% (zero misses)** |
+
+The proxy form preserves the same observation quality as the in-process pipeline (visual-gate filters count as match-by-construction, same as the in-process eval). The single-image-per-turn pattern produces larger savings because there's no prior image dragging tokens along — that's the realistic pattern for most agent loops.
+
+**Why is the proxy lower than the in-process pipeline?** The in-process adapter (81.9% / 90.1% on the same flow) can skip the model call entirely on no-change turns — the agent's own loop handles the skip. The proxy can't safely do that: it doesn't know whether the agent expects text, a `tool_use` block, or a structured JSON action, and getting the synthesized response wrong would break computer-use and most production agent loops. Use the proxy when you can't modify agent code; use the in-process adapter when you can.
+
+A future `--synthesize-on-skip` proxy flag, scoped to agents with known output shapes (e.g., text-output change-detection prompts), could close more of the gap. It's intentionally **not** shipped in v0.1 — the proxy's current contract is "transparent rewrite, never synthesize," and that's the safer default.
+
+For context: an MCP-based dogfood on a short Claude Code session was **+27% more expensive** than baseline because MCP tool definitions, tool-call args, and JSON cache churn dominated a 5-frame session. The proxy form has zero per-turn tax. Full investigation in [`RESULTS.md`](./RESULTS.md).
+
+See [`RESULTS.md`](./RESULTS.md) for the full methodology, evolution, and per-frame verdicts; [`docs/DEMO_AND_EVAL.md`](./docs/DEMO_AND_EVAL.md) for demo and reproduction commands.
 
 ## Docs
 
+- [`RESULTS.md`](./RESULTS.md) — full methodology, measurement evolution, proxy A/B validation, MCP overhead investigation
 - [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md) — proxy implementation details
 - [`docs/REGION_EVIDENCE_DESIGN.md`](./docs/REGION_EVIDENCE_DESIGN.md) — Region Evidence route, semantic labels, and crop generation
 - [`DESIGN.md`](./DESIGN.md) — architecture and product direction
