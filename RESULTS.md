@@ -203,7 +203,7 @@ Concretely, the proxy form has zero overhead because:
 - No tool definitions are injected into the agent's context
 - Tool-call arguments don't exist (the agent calls `messages.create` normally)
 
-The next iteration of StateLens will lead with the SDK wrapper / HTTP proxy as the primary surface, with MCP retained as a compatibility adapter for editor integrations (Cursor, Claude Code, Claude Desktop) where the proxy can't reach.
+**Shipped in v0.1.0:** StateLens now leads with the local Anthropic-compatible HTTP proxy as the primary surface, with MCP retained as a compatibility adapter for editor integrations (Cursor, Claude Code, Claude Desktop) where the proxy can't reach. See the section below for the end-to-end proxy A/B numbers that validated this direction.
 
 ## Real-world validation: the proxy form ships and reverses the MCP finding
 

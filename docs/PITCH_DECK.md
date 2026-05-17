@@ -15,10 +15,10 @@ Computer-use agents waste money re-reading screenshots where nothing meaningful 
 **Proof point:** 80-90% cost reduction across two adversarial screenshot scenarios with 78-100% event-capture accuracy, measured with real Anthropic API usage. Now shipping as a **drop-in Anthropic-compatible proxy** — change one `baseURL` and your existing agent gets the savings with zero code changes.
 
 **Visual direction:**  
-One line pipeline: `screenshot stream -> StateLens proxy -> no-change stub | event card | region evidence | full vision -> agent reasoning`
+One line pipeline: `screenshot stream -> StateLens proxy -> compact events -> agent reasoning`
 
 **Speaker note:**  
-StateLens is not another browser agent. It is the observation router every browser or computer-use agent should pass through before spending vision tokens. The proxy form means no SDK swap, no MCP plumbing — just a different `baseURL`.
+StateLens is not another browser agent. It is the layer every browser or computer-use agent should call before spending vision tokens. The proxy form means no SDK swap, no MCP plumbing — just a different `baseURL`.
 
 ---
 
@@ -120,13 +120,12 @@ current screenshot
 - action-failure detection: expected-change actions that produce no UI change emit a structured `action_failed` event
 - multi-language OCR: `STATELENS_OCR_LANGS` configures Tesseract for non-English UI flows, defaults to English
 - **Anthropic-compatible HTTP proxy**: intercepts `POST /v1/messages`, runs the pipeline on the latest image block, rewrites the request before forwarding — with a recursion guard so internal Haiku calls bypass the proxy
-- evidence-ladder design: today the proxy emits no-change stubs, text observations, or fail-open full vision; next hardening adds changed-region visual evidence for localized visual changes
 
 **Visual direction:**  
-Six-stage architecture diagram with local stages in green and optional VLM in amber, fronted by a proxy box that routes each request onto an evidence ladder.
+Six-stage architecture diagram with local stages in green and optional VLM in amber, fronted by a proxy box that sits between the agent SDK and Anthropic.
 
 **Speaker note:**  
-The pipeline is model-external. It works as a library, through MCP, inside custom agent loops, and now as a transparent proxy that any Anthropic SDK can point at. The important product shift is not "always replace images with text"; it is "send the cheapest sufficient evidence."
+The pipeline is model-external. It works as a library, through MCP, inside custom agent loops, and now as a transparent proxy that any Anthropic SDK can point at.
 
 ---
 
@@ -145,7 +144,7 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
 # ...that's it. No code changes. No tool calls. No prompts.
 ```
 
-The proxy detects image blocks in `POST /v1/messages`, runs the StateLens pipeline against the latest screenshot, and rewrites the request to the cheapest sufficient observation before forwarding upstream. Today that means a no-change stub, a compact text observation, or fail-open full vision. The planned evidence-ladder hardening adds changed-region crops and low-res/annotated context for frames where text would be too lossy but full vision is wasteful. Recursion guard via `STATELENS_INTERNAL_ANTHROPIC_BASE_URL` keeps internal Haiku calls from looping back.
+The proxy detects image blocks in `POST /v1/messages`, runs the StateLens pipeline against the latest screenshot, rewrites it to a compact text observation (or a "no meaningful change" stub when the visual gate skips it), and forwards to upstream Anthropic. Recursion guard via `STATELENS_INTERNAL_ANTHROPIC_BASE_URL` keeps internal Haiku calls from looping back.
 
 **Other surfaces shipped:**
 
@@ -162,13 +161,12 @@ The proxy detects image blocks in `POST /v1/messages`, runs the StateLens pipeli
 - MCP accepts local `screenshot_path` or in-memory `screenshot_base64`
 - conservative fallbacks for invalid screenshots and analysis errors
 - local no-key operation for non-VLM stages
-- planned route hardening: `region_evidence` and `context_snapshot` for localized visual changes and layout-level changes
 
 **Visual direction:**  
-Four-lane diagram: Proxy (highlighted, primary), MCP, library, adapter — all feeding the same pipeline box, which outputs an evidence ladder instead of a single "text-only" replacement.
+Four-lane diagram: Proxy (highlighted, primary), MCP, library, adapter — all feeding the same pipeline box.
 
 **Speaker note:**  
-Lead with the proxy. It's the surface that requires the least cooperation from the agent and reproduces the harness savings directly. MCP is the editor-compatibility adapter for environments the proxy can't reach. Be precise: text observations are the current cheapest route, not the whole architecture.
+Lead with the proxy. It's the surface that requires the least cooperation from the agent and reproduces the harness savings directly. MCP is the editor-compatibility adapter for environments the proxy can't reach.
 
 ---
 
@@ -200,8 +198,6 @@ Measured with real Anthropic API token counts (Sonnet 4.6, Haiku 4.5 internally)
 **Honest accounting.** Run B totals include every Haiku token StateLens consumes internally. No "shifted to a cheaper model" trick — if Haiku's tokens were excluded, the savings would look ~15pp better. We chose to count them against ourselves.
 
 **Phase 4 tuning footnote.** Checkout lenient accuracy was 56% pre-tuning. We diagnosed garbage OCR ("a / ® |") on Zara's stylized form fields causing false `text_summary` routes, shipped an `isTextReliable()` check in `importanceScorer.ts`, and lifted accuracy to 78% with cost reduction holding at 81%. Full evolution in [`RESULTS.md`](../RESULTS.md). Reproducible: `npm run measure` and `npm run measure -- demo/screenshots/checkout_flow`.
-
-**Evidence-ladder implication.** These measured numbers use the current shipped routes: no-change stubs, text observations, internal Haiku summaries, and fail-open full vision on errors. The 2 checkout misses are exactly why the next product hardening is `region_evidence`: for localized visual changes, send the event card plus the changed crop instead of forcing a text-only summary or paying for the whole screenshot.
 
 ### Proxy-form validation — the harness number reproduces end-to-end
 
@@ -296,17 +292,6 @@ if (route.route === 'use_text_observation') await reasoningModel({ text: route.c
 if (route.route === 'use_full_vision')      await reasoningModel({ image: screenshot });
 ```
 
-Planned evidence-ladder hardening adds a middle route for localized visual evidence:
-
-```ts
-if (route.route === 'use_region_evidence') {
-  await reasoningModel({
-    text: route.context,
-    images: route.changedRegionCrops,
-  });
-}
-```
-
 **Tier 3 — proxy (data-path, strongest, zero code change):**
 
 ```ts
@@ -321,7 +306,7 @@ await client.messages.create({
 });
 ```
 
-The proxy inspects the latest image block, runs `observe()`, and rewrites the request before it hits Anthropic — agent never sees StateLens tool JSON, no tool definitions get injected, no cache churn. Today the rewrite is a no-change stub, text observation, or fail-open full image. The evidence-ladder version keeps the same data-path integration while allowing changed-region crops when text alone is too lossy.
+The proxy inspects the latest image block, runs `observe()`, and rewrites the request before it hits Anthropic — agent never sees JSON observations, no tool definitions get injected, no cache churn. This is the form where the harness's 80% savings translate directly to a real client.
 
 The `actionLabel` (Tier 2) is no longer just a hint. Mutating labels (`click_submit`, `save_*`, `fill_*`, `expect_change:*`) flip an unchanged screen from `no_change` to `action_failed`. Passive labels (`wait`, `observe:*`, `passive:*`) keep their quiet path.
 
@@ -338,6 +323,52 @@ The `actionLabel` (Tier 2) is no longer just a hint. Mutating labels (`click_sub
 
 **Visual direction:**  
 Three-tier stack (prompt → middleware → proxy) with "strength of enforcement" arrow pointing down to proxy, plus an evidence-ladder legend beside the proxy.
+
+**Speaker note:**  
+The folder demo proves the pipeline. The adapter proves it in real-time screenshot loops. The proxy proves it in the integration shape that requires the least from the agent author — and is the form where the cost numbers reproduce in production clients (see slide 9).
+
+---
+
+## Slide 9 - The Delivery-Surface Lesson
+
+### We Shipped MCP, Dogfooded It, Found It Was More Expensive — Then Built The Proxy
+
+The pipeline savings are real, but **the delivery surface matters as much as the pipeline.** We learned this by measuring our own MCP server end-to-end inside Claude Code.
+
+**The dogfood:** two Claude Code sessions, identical 12-frame login prompt, identical model (Opus 4.7). Run A used `Read`. Run B swapped `Read` → `statelens_observe`. Cost measured by `/cost` in each session.
+
+| Opus 4.7 metric | Run A (Read) | Run B (StateLens MCP) | Δ |
+|---|---:|---:|---:|
+| Total cost | $0.66 | **$0.84** | **+27% more expensive** |
+| Output tokens | 2.1k | 3.5k | +1.4k (verbose tool args) |
+| Cache write | 45.3k | 65.5k | +20.2k (JSON response churn) |
+| Cache read | 657.8k | 685.1k | +27.3k (tool defs per turn) |
+
+The opposite of the 80% reduction the harness predicts. We diagnosed three overheads, all properties of **MCP**, not properties of the pipeline:
+
+1. **Tool-call argument verbosity** — `screenshot_path`, `session_id` is more output than `file_path`
+2. **MCP tool definitions cached every turn** — 4 tools × ~400 tokens × 14 turns = ~22k extra cache reads
+3. **JSON responses churning the cache** — every observation is textually unique, forces cache writes
+
+Modeled breakeven on Opus: ~30–50 frames. Below that, MCP overhead dominates the per-frame savings.
+
+**The fix — proxy form, same pipeline, different surface:**
+
+| Surface | 12-frame login result |
+|---|---|
+| MCP, short Opus session | **+27% more expensive** |
+| Proxy, prev+curr per turn | **−31.3% cheaper** (100% lenient accuracy, 0 misses) |
+| Proxy, single-image per turn | **−59.4% cheaper** |
+
+**Why the proxy has zero overhead:**
+
+- runs *before* the request reaches the model
+- agent never sees JSON observations — only the rewritten text-only or skipped message
+- no tool definitions injected into agent context
+- no tool-call arguments — the agent calls `messages.create` normally
+
+**Visual direction:**  
+Three-tier stack (prompt → middleware → proxy) with "strength of enforcement" arrow pointing down to proxy.
 
 **Speaker note:**  
 The folder demo proves the pipeline. The adapter proves it in real-time screenshot loops. The proxy proves it in the integration shape that requires the least from the agent author — and is the form where the cost numbers reproduce in production clients (see slide 9).

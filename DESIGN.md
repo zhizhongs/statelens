@@ -34,7 +34,7 @@ The MCP behavior is not deprecated. It remains the right path for tool-aware cli
 ### How It Works for the End User Today: MCP
 
 ```bash
-npm install -g statelens
+npm install -g statelens-sdk
 ```
 
 Claude Code config (`~/.claude/mcp.json`):
@@ -980,7 +980,7 @@ Target Anthropic shape:
 
 ```typescript
 import Anthropic from '@anthropic-ai/sdk';
-import { wrapAnthropic } from 'statelens/anthropic';
+import { wrapAnthropic } from 'statelens-sdk/anthropic'; // planned, not yet exported
 
 const client = wrapAnthropic(new Anthropic(), {
   sessionId: 'checkout-flow',
@@ -1667,7 +1667,7 @@ Acceptance: `npm run measure` runs end-to-end without errors and produces the ta
 
 Write README.md sections:
 1. What StateLens is (lift from Section 1)
-2. Install: npm install -g statelens
+2. Install: npm install -g statelens-sdk
 3. Configure in Cursor: ~/.cursor/mcp.json snippet (path to statelens binary, args: ['serve'])
 4. Configure in Claude Code: ~/.claude/mcp.json snippet (same shape)
 5. Configure in Claude Desktop: claude_desktop_config.json snippet
@@ -1830,7 +1830,7 @@ StateLens core is a TypeScript library. The product should ship multiple wrapper
 For developers using Claude Code, Cursor, Windsurf, or any MCP client. This is the current zero-code tool-discovery integration.
 
 ```bash
-npm install -g statelens
+npm install -g statelens-sdk
 # Add to MCP config, done
 ```
 
@@ -1842,14 +1842,14 @@ For developers building custom agents in TypeScript/JavaScript who control their
 
 Raw pipeline:
 ```typescript
-import { observe } from 'statelens';
+import { observe } from 'statelens-sdk';
 const result = await observe(screenshotBuffer, sessionId, actionLabel);
 ```
 
 With the routing helper (recommended for agent loops):
 ```typescript
-import { observe } from 'statelens';
-import { routeObservation } from 'statelens/dist/src/adapters/routeObservation.js';
+import { observe } from 'statelens-sdk';
+import { routeObservation } from 'statelens-sdk/adapters';
 
 const observation = await observe(buffer, sessionId, actionLabel);
 const route = routeObservation(observation);
@@ -1858,7 +1858,7 @@ const route = routeObservation(observation);
 
 With the Playwright-shaped reference adapter (works with any Page-like object that exposes `screenshot(): Promise<Buffer>`):
 ```typescript
-import { captureAndRoute } from 'statelens/dist/src/adapters/playwright.js';
+import { captureAndRoute } from 'statelens-sdk/playwright';
 
 const { screenshot, observation, route } = await captureAndRoute(page, {
   sessionId, actionLabel: 'click_submit',
@@ -1873,7 +1873,7 @@ For apps that instantiate the model SDK directly. This should be the first Tier 
 
 ```typescript
 import Anthropic from '@anthropic-ai/sdk';
-import { wrapAnthropic } from 'statelens/anthropic';
+import { wrapAnthropic } from 'statelens-sdk/anthropic'; // planned, not yet exported
 
 const client = wrapAnthropic(new Anthropic(), { sessionId: 'run-123' });
 ```
