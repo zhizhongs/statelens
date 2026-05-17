@@ -57,13 +57,23 @@ function cropForRegion(
   return { left, top, width: cropW, height: cropH };
 }
 
-export async function ocrDiff(
+// Per-region OCR results. `byRegion` is index-aligned with the input `regions`
+// array (skipped regions get an empty entry) so callers — like the Region
+// Evidence labeler — can attach text to specific bboxes. `added`/`removed`
+// preserve the legacy aggregated shape for backward compatibility.
+export interface OcrDiffDetail {
+  added: string[];
+  removed: string[];
+  byRegion: { prev: string[]; curr: string[] }[];
+}
+
+export async function ocrDiffDetailed(
   prevBuffer: Buffer,
   currBuffer: Buffer,
   regions: ChangedRegion[]
-): Promise<TextDiff> {
+): Promise<OcrDiffDetail> {
   if (regions.length === 0) {
-    return { added: [], removed: [] };
+    return { added: [], removed: [], byRegion: [] };
   }
 
   const [{ width, height }, prevDims] = await Promise.all([
@@ -78,8 +88,13 @@ export async function ocrDiff(
 
   const prevTexts = new Set<string>();
   const currTexts = new Set<string>();
+  const byRegion: { prev: string[]; curr: string[] }[] = regions.map(() => ({
+    prev: [],
+    curr: [],
+  }));
 
-  for (const region of regions) {
+  for (let i = 0; i < regions.length; i++) {
+    const region = regions[i];
     const cropOpts = cropForRegion(region, width, height);
     if (!cropOpts) continue;
 
@@ -100,8 +115,11 @@ export async function ocrDiff(
         worker.recognize(prevCrop),
         worker.recognize(currCrop),
       ]);
-      cleanLines(prevResult.data.text).forEach((l) => prevTexts.add(l));
-      cleanLines(currResult.data.text).forEach((l) => currTexts.add(l));
+      const prevLines = cleanLines(prevResult.data.text);
+      const currLines = cleanLines(currResult.data.text);
+      byRegion[i] = { prev: prevLines, curr: currLines };
+      prevLines.forEach((l) => prevTexts.add(l));
+      currLines.forEach((l) => currTexts.add(l));
     } catch {
       // Region-local OCR failure — skip and continue.
       continue;
@@ -111,7 +129,17 @@ export async function ocrDiff(
   return {
     added: [...currTexts].filter((t) => !prevTexts.has(t)),
     removed: [...prevTexts].filter((t) => !currTexts.has(t)),
+    byRegion,
   };
+}
+
+export async function ocrDiff(
+  prevBuffer: Buffer,
+  currBuffer: Buffer,
+  regions: ChangedRegion[]
+): Promise<TextDiff> {
+  const detailed = await ocrDiffDetailed(prevBuffer, currBuffer, regions);
+  return { added: detailed.added, removed: detailed.removed };
 }
 
 export async function prewarmOcrWorker(): Promise<void> {

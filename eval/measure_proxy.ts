@@ -178,7 +178,7 @@ async function bootProxy(): Promise<() => Promise<void>> {
     process.env
   );
   // silence per-request JSON logs during the eval
-  opts.logLevel = 'silent';
+  opts.logLevel = (process.env.STATELENS_EVAL_PROXY_LOG_LEVEL as typeof opts.logLevel) ?? 'silent';
   const server = createAnthropicProxyServer(opts);
   await new Promise<void>((resolve) => server.listen(PROXY_PORT, PROXY_HOST, resolve));
   console.log(chalk.dim(`Proxy listening on http://${PROXY_HOST}:${PROXY_PORT}\n`));

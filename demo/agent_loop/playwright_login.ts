@@ -338,6 +338,12 @@ async function step(
 
   if (route.route === 'use_text_observation') {
     console.log(`           context:\n${indent(route.context, '             ')}`);
+  } else if (
+    route.route === 'use_region_evidence' ||
+    route.route === 'use_context_snapshot'
+  ) {
+    console.log(`           context:\n${indent(route.context, '             ')}`);
+    console.log(`           evidence: ${route.evidence.length} crop(s)`);
   } else if (route.route === 'use_full_vision') {
     console.log(`           reason: ${route.reason}`);
     await mockExpensiveVlmCall(screenshot, observation.event_summary);

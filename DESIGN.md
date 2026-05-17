@@ -65,10 +65,14 @@ The SDK still calls `client.messages.create(...)`. The request lands at StateLen
 
 - `use_full_vision`: forward the request unchanged
 - `use_text_observation`: remove image blocks and inject a StateLens text observation
+- `use_region_evidence` *(opt-in via `STATELENS_REGION_EVIDENCE=1`)*: replace the screenshot with a text observation plus 1–3 small crops of the changed regions
+- `use_context_snapshot` *(opt-in via `STATELENS_REGION_EVIDENCE=1`)*: same shape as `use_region_evidence`, used when there are too many regions or the cropper dropped one — the model still gets a partial visual snapshot
 - `skip_vision`: remove image blocks and inject "no meaningful UI change" context, then forward as text-only
 - `analysis_error` / `invalid_screenshot`: forward unchanged
 
 The default gateway does not man-in-the-middle arbitrary traffic and does not require custom CA certificates. It only works when the SDK or agent exposes a base URL / endpoint override.
+
+See [`docs/REGION_EVIDENCE_DESIGN.md`](./docs/REGION_EVIDENCE_DESIGN.md) for the Region Evidence design, including the semantic region labeler, the crop builder, and the `observeWithEvidence()` API.
 
 ### What Claude Code Sees
 
@@ -353,6 +357,31 @@ Input surface
        v
 Structured observation or rewritten model request
 ```
+
+For the `observeWithEvidence()` orchestrator, Stages 1–6 run as above and the
+result is augmented with two additional stages before the route is chosen:
+
+```
+[Stage 3b] Region Labeler             <-- per-region OCR + keyword heuristics
+                                          → EvidenceRegion[] with snake_case labels
+                                          (shipping_form, login_form, error_message, …)
+                                          and per-region + aggregate confidence
+       |
+       v
+[Stage 7]  Evidence Cropper (opt-in)  <-- padded, clamped, resized PNG crops
+                                          per labeled region; capped at 3 crops
+                                          and 768px long edge by default
+       |
+       v
+routeEvidenceObservation()            <-- skip_vision / use_text_observation /
+                                          use_region_evidence / use_context_snapshot /
+                                          use_full_vision
+```
+
+Stage 3b and Stage 7 are additive: the legacy `observe()` orchestrator never
+runs them. See [`docs/REGION_EVIDENCE_DESIGN.md`](./docs/REGION_EVIDENCE_DESIGN.md)
+for the data model (`EvidenceRegion`, `VisualEvidence`, `EvidenceObservation`),
+the confidence model, the semantic label taxonomy, and the cost guardrails.
 
 ### 4.2 Stage 1: Cheap Visual Gate
 
@@ -952,14 +981,18 @@ export function resetSession(sessionId: string) {
 
 ### 5.3 Shared Routing Contract
 
-All delivery surfaces use the same pipeline and route decision. MCP returns the raw `ObservationResult` because the agent is responsible for deciding how to use the tool result. In-process adapters and the gateway additionally call `routeObservation()` to turn the observation into a model-request policy.
+All delivery surfaces use the same pipeline and route decision. MCP returns the raw `ObservationResult` because the agent is responsible for deciding how to use the tool result. In-process adapters and the gateway additionally call `routeObservation()` (or `routeEvidenceObservation()` for the evidence-aware path) to turn the observation into a model-request policy.
 
 ```typescript
 type ObservationRoute =
-  | { route: 'skip_vision'; reason: string; observation: ObservationResult }
-  | { route: 'use_text_observation'; context: string; observation: ObservationResult }
-  | { route: 'use_full_vision'; reason: string; observation: ObservationResult };
+  | { route: 'skip_vision'; reason: string; observation: ObservationResult | EvidenceObservation }
+  | { route: 'use_text_observation'; context: string; observation: ObservationResult | EvidenceObservation }
+  | { route: 'use_region_evidence'; context: string; evidence: VisualEvidence[]; observation: EvidenceObservation }
+  | { route: 'use_context_snapshot'; context: string; evidence: VisualEvidence[]; observation: EvidenceObservation }
+  | { route: 'use_full_vision'; reason: string; observation: ObservationResult | EvidenceObservation };
 ```
+
+`use_region_evidence` and `use_context_snapshot` are produced only by `routeEvidenceObservation()` and only when the caller asked `observeWithEvidence()` to attach crops. The legacy three-route policy (`skip_vision` / `use_text_observation` / `use_full_vision`) is what `routeObservation()` returns and what the proxy uses by default.
 
 Gateway policy:
 
@@ -967,8 +1000,12 @@ Gateway policy:
 |---|---|---|
 | `use_full_vision` | Forward the original request unchanged | Preserve accuracy on first frames, failures, and visual-only states |
 | `use_text_observation` | Strip screenshot image blocks and inject StateLens text context | Preserve model reasoning while avoiding image tokens |
+| `use_region_evidence` | Strip the screenshot and inject `[text, …crop image blocks]` (1–3 crops) | Give the model the parts of the UI that actually changed without paying for the rest of the screen |
+| `use_context_snapshot` | Same as `use_region_evidence` with a "partial summary" framing | The cropper dropped some regions or there were too many; the model still gets the most important crops |
 | `skip_vision` | Strip screenshot image blocks and inject no-change context, then forward text-only | Let the agent maintain loop continuity without paying for pixels |
 | `analysis_error` / `invalid_screenshot` | Forward unchanged | Fail open rather than silently losing state |
+
+The Region Evidence routes are gated behind `STATELENS_REGION_EVIDENCE=1` in the proxy so the default behavior is unchanged and measurable accuracy / cost impact is opt-in.
 
 Hard short-circuiting, where StateLens returns a synthesized model response without forwarding upstream, is an opt-in optimization for deterministic loops. It is not the default because generic agents may rely on each model turn for planning, tool calls, or conversation state.
 
@@ -1820,6 +1857,7 @@ It is a **model-external screenshot gate** defined by five properties:
 7. **SDK middleware:** `wrapAnthropic()` / `wrapOpenAI()` request rewriting in-process
 8. **Local API gateway:** provider-compatible proxy using `ANTHROPIC_BASE_URL` / OpenAI endpoint overrides
 9. **HTTP observation API:** explicit `POST /observe` endpoint for cross-language consumers
+10. **Region Evidence (shipped behind a flag):** `observeWithEvidence()` + `use_region_evidence` / `use_context_snapshot` routes that swap a full screenshot for text plus 1–3 region crops. Gated by `STATELENS_REGION_EVIDENCE=1`; default `observe()` contract unchanged. See [`docs/REGION_EVIDENCE_DESIGN.md`](./docs/REGION_EVIDENCE_DESIGN.md). Outstanding work: measurement of accuracy / cost impact on the login and checkout flows before enabling by default.
 
 ## 16. Integration Surfaces
 
@@ -1848,24 +1886,42 @@ const result = await observe(screenshotBuffer, sessionId, actionLabel);
 
 With the routing helper (recommended for agent loops):
 ```typescript
-import { observe } from 'statelens';
-import { routeObservation } from 'statelens/dist/src/adapters/routeObservation.js';
+import { observe, routeObservation } from 'statelens';
 
 const observation = await observe(buffer, sessionId, actionLabel);
 const route = routeObservation(observation);
 // route.route ∈ { 'skip_vision', 'use_text_observation', 'use_full_vision' }
 ```
 
+With the Region Evidence API (returns semantic region labels + optional crops):
+```typescript
+import { observeWithEvidence, routeEvidenceObservation } from 'statelens';
+
+const evidence = await observeWithEvidence(buffer, {
+  sessionId,
+  actionLabel,
+  includeCrops: true,
+});
+const route = routeEvidenceObservation(evidence);
+// route.route ∈ {
+//   'skip_vision', 'use_text_observation',
+//   'use_region_evidence', 'use_context_snapshot',
+//   'use_full_vision',
+// }
+```
+
+`observeWithEvidence()` shares the same per-session timeline as `observe()`. The legacy `observe()` contract — `observe()`, `getTimeline()`, `resetSession()`, `getVlmCumulativeUsage()`, `resetVlmCumulativeUsage()` — is unchanged. See [`docs/REGION_EVIDENCE_DESIGN.md`](./docs/REGION_EVIDENCE_DESIGN.md) for the data model.
+
 With the Playwright-shaped reference adapter (works with any Page-like object that exposes `screenshot(): Promise<Buffer>`):
 ```typescript
-import { captureAndRoute } from 'statelens/dist/src/adapters/playwright.js';
+import { captureAndRoute } from 'statelens/playwright';
 
 const { screenshot, observation, route } = await captureAndRoute(page, {
   sessionId, actionLabel: 'click_submit',
 });
 ```
 
-The router and adapter live outside `src/pipeline/` so they do not expand Person A's locked surface. The pipeline contract — `observe()`, `getTimeline()`, `resetSession()`, `getVlmCumulativeUsage()`, `resetVlmCumulativeUsage()` — is unchanged.
+The router and adapter live outside `src/pipeline/` so they do not expand Person A's locked surface.
 
 ### Surface 3: SDK Middleware (Planned)
 
@@ -1890,6 +1946,14 @@ export ANTHROPIC_BASE_URL=http://localhost:8443
 ```
 
 The gateway receives provider-compatible model requests, rewrites screenshot-bearing payloads when StateLens has a cheaper observation, and forwards upstream. It is not a transparent MITM and should not require TLS interception.
+
+Region Evidence routing is gated behind an env flag:
+
+```bash
+STATELENS_REGION_EVIDENCE=1 statelens proxy --provider anthropic --port 8443
+```
+
+When enabled, the proxy runs `observeWithEvidence()` with `includeCrops: true` and `routeEvidenceObservation()`. Localized, label-trustworthy changes are rewritten as one text block plus 1–3 crop image blocks; everything else falls through to the same fail-open behavior as the legacy router. Crop bytes are never logged unless `STATELENS_LOG_IMAGES=1` is set.
 
 ### Surface 5: Standalone HTTP Observation API (Optional)
 

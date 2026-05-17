@@ -10,6 +10,7 @@ Two people, two role docs, phased work with merge checkpoints.
 | [PIPELINE_PHASE2_IMPLEMENTATION.md](./PIPELINE_PHASE2_IMPLEMENTATION.md) | **Person A** | Phase 2 implementation design for importance scoring, selective VLM, usage accounting, and timeline assembly |
 | [POST_PHASE3_AGENT_INTEGRATION.md](./POST_PHASE3_AGENT_INTEGRATION.md) | **Shared** | Supplementary design for integrating the completed Phase 3 pipeline into real computer-use agent loops |
 | [PROXY_IMPLEMENTATION.md](./PROXY_IMPLEMENTATION.md) | **Shared** | Implementation design for the Anthropic-compatible local proxy/gateway |
+| [REGION_EVIDENCE_DESIGN.md](./REGION_EVIDENCE_DESIGN.md) | **Shared** | Region Evidence route + crop generation — `observeWithEvidence()`, semantic region labels, `use_region_evidence` / `use_context_snapshot` routes, and the `STATELENS_REGION_EVIDENCE=1` proxy flag |
 | [DEMO_AND_EVAL.md](./DEMO_AND_EVAL.md) | **Person B** | Demo, live eval, and measurement commands |
 | [DEMO_SCRIPT.md](./DEMO_SCRIPT.md) | **Person B** | Exact prompt and flow for the live Cursor MCP demo + stress-test checklist + backup plan |
 
@@ -26,6 +27,7 @@ Phase 3 baseline results: [`../eval/results/phase3_baseline.json`](../eval/resul
 | 3 | 14-24 | Edge cases tested (~~second scenario skipped~~) | Live demo polish + README + measured baseline | `npm run measure` produces real numbers |
 | 4 | 24-40 | Failure detection / CLIP / multi-lang | Playwright integration / HTML report | Stretch features stable |
 | 5 | 40-48 | Technical backstop | Slides + pitch + practice | Pitch is rehearsed |
+| Post-4 | — | Region Evidence: `observeWithEvidence()`, semantic region labels, crop builder, `use_region_evidence` / `use_context_snapshot` routes, proxy rewrite behind `STATELENS_REGION_EVIDENCE=1` | — | Tests green; default `observe()` contract unchanged |
 
 ## Working Discipline
 

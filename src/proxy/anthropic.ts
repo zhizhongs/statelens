@@ -2,7 +2,11 @@ import 'dotenv/config';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { observe, getTimeline, resetSession } from '../pipeline/index.js';
-import { routeObservation } from '../adapters/routeObservation.js';
+import { observeWithEvidence } from '../pipeline/observeEvidence.js';
+import {
+  routeEvidenceObservation,
+  routeObservation,
+} from '../adapters/routeObservation.js';
 import {
   extractLatestAnthropicImageBlock,
 } from '../gateway/anthropicImageBlocks.js';
@@ -15,6 +19,10 @@ import {
   sanitizeRequestHeaders,
   sanitizeResponseHeaders,
 } from './upstream.js';
+
+function regionEvidenceEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.STATELENS_REGION_EVIDENCE === '1';
+}
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 8443;
@@ -180,10 +188,21 @@ export async function processAnthropicMessagesRequest(args: {
 
   let rewrite: GatewayRewriteResult | null = null;
   const started = Date.now();
+  const useEvidence = regionEvidenceEnabled();
   try {
-    const observation = await observe(image.bytes, context.sessionId, context.actionLabel);
-    const route = routeObservation(observation);
-    rewrite = rewriteAnthropicRequestForRoute({ requestBody: body, image, route });
+    if (useEvidence) {
+      const observation = await observeWithEvidence(image.bytes, {
+        sessionId: context.sessionId,
+        actionLabel: context.actionLabel,
+        includeCrops: true,
+      });
+      const route = routeEvidenceObservation(observation);
+      rewrite = rewriteAnthropicRequestForRoute({ requestBody: body, image, route });
+    } else {
+      const observation = await observe(image.bytes, context.sessionId, context.actionLabel);
+      const route = routeObservation(observation);
+      rewrite = rewriteAnthropicRequestForRoute({ requestBody: body, image, route });
+    }
   } catch (err) {
     proxyLog(options, 'info', {
       request_id: context.requestId,
@@ -197,6 +216,15 @@ export async function processAnthropicMessagesRequest(args: {
     return forwardRaw(options, path, sanitizeRequestHeaders(headers), rawBody, forwarder);
   }
 
+  // Crop bytes are sensitive — log shape but never the base64 payload unless
+  // STATELENS_LOG_IMAGES=1 is explicitly set.
+  const cropCount =
+    rewrite.route &&
+    (rewrite.route.route === 'use_region_evidence' ||
+      rewrite.route.route === 'use_context_snapshot')
+      ? rewrite.route.evidence.length
+      : 0;
+
   proxyLog(options, 'info', {
     request_id: context.requestId,
     provider: 'anthropic',
@@ -206,6 +234,8 @@ export async function processAnthropicMessagesRequest(args: {
     event_type: rewrite.observation?.event_type,
     vlm_called: rewrite.observation?.vlm_called,
     rewritten: rewrite.action === 'forward_rewritten',
+    crop_count: cropCount,
+    region_evidence_enabled: useEvidence,
     latency_ms: Date.now() - started,
   });
 
@@ -288,5 +318,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   console.error(`StateLens proxy listening on http://${options.host}:${options.port}`);
   console.error(`Provider: ${options.provider}`);
   console.error(`Upstream: ${options.upstreamBaseUrl}`);
-  console.error('Mode: fail-open text rewrite');
+  console.error(
+    `Mode: ${regionEvidenceEnabled() ? 'fail-open text rewrite + region evidence' : 'fail-open text rewrite'}`
+  );
 }

@@ -1,5 +1,8 @@
 import type { Buffer } from 'node:buffer';
-import type { ObservationResult } from '../pipeline/index.js';
+import type {
+  EvidenceObservation,
+  ObservationResult,
+} from '../pipeline/index.js';
 import type { ObservationRoute } from '../adapters/routeObservation.js';
 
 export type Provider = 'anthropic';
@@ -33,7 +36,7 @@ export interface GatewayRewriteResult {
   action: GatewayAction;
   reason: string;
   requestBody: unknown;
-  observation?: ObservationResult;
+  observation?: ObservationResult | EvidenceObservation;
   route?: ObservationRoute;
 }
 

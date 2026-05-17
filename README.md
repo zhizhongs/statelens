@@ -125,6 +125,18 @@ Proxy behavior:
 - Does not MITM traffic or require a custom CA certificate.
 - Does not synthesize provider responses by default.
 
+### Region Evidence (opt-in)
+
+Region Evidence is the middle rung between "text observation" and "full screenshot": StateLens swaps the screenshot for a text observation plus 1–3 small crops of just the changed regions. Enable it on the proxy with an env flag:
+
+```bash
+STATELENS_REGION_EVIDENCE=1 statelens proxy --provider anthropic --port 8443
+```
+
+When enabled, the proxy runs `observeWithEvidence()`, labels each changed region (`shipping_form`, `delivery_options`, `payment_method`, `login_form`, `error_message`, `navigation`, or a snake_case geometry fallback), and — for medium- or high-confidence localized keyframes — replaces the screenshot with one text block plus crop image blocks. Many-region, oversized, or low-confidence keyframes fall through to either `use_context_snapshot` (partial crops) or `use_full_vision`. Crop bytes are never logged unless `STATELENS_LOG_IMAGES=1` is also set.
+
+See [`docs/REGION_EVIDENCE_DESIGN.md`](./docs/REGION_EVIDENCE_DESIGN.md) for the data model, confidence rules, and cost guardrails.
+
 ## Use MCP
 
 Use MCP when your client can discover tools and you want StateLens observations available inside the agent. MCP remains a first-class integration; the proxy is an additional wrapper around the same pipeline.
@@ -189,6 +201,35 @@ const observation = await observe(screenshotBuffer, 'session-id', 'click_submit'
 const route = routeObservation(observation);
 ```
 
+Use the evidence-aware API when you want semantic region labels and optional crops:
+
+```ts
+import { observeWithEvidence, routeEvidenceObservation } from 'statelens';
+
+const observation = await observeWithEvidence(screenshotBuffer, {
+  sessionId: 'checkout_flow',
+  actionLabel: 'click_continue',
+  includeCrops: true,
+});
+const route = routeEvidenceObservation(observation);
+
+switch (route.route) {
+  case 'skip_vision':
+  case 'use_text_observation':
+    break;
+  case 'use_region_evidence':
+  case 'use_context_snapshot':
+    // route.evidence is 1-3 small PNG crops of the changed regions.
+    await reasoningModel({ text: route.context, images: route.evidence });
+    break;
+  case 'use_full_vision':
+    await reasoningModel({ image: screenshotBuffer });
+    break;
+}
+```
+
+`observeWithEvidence()` shares the same per-session timeline as `observe()` — you can mix the two in the same session. Crops default off (`includeCrops: false`) so the call stays cheap when you only want labeled regions.
+
 ## Integration Surfaces
 
 | Surface | Status | Best for |
@@ -207,7 +248,13 @@ screenshot
   -> OCR diff
   -> importance score
   -> optional small VLM explanation
-  -> text observation, full-vision fallback, or no-change route
+  -> optional region labeling + crop generation (observeWithEvidence)
+  -> one of:
+       skip_vision           (no meaningful change)
+       use_text_observation  (text alone explains the change)
+       use_region_evidence   (text + 1-3 small region crops)   [opt-in]
+       use_context_snapshot  (partial crops + summary)         [opt-in]
+       use_full_vision       (forward the original screenshot)
 ```
 
 ## Results
@@ -226,6 +273,7 @@ See [`RESULTS.md`](./RESULTS.md) for the full methodology and [`docs/DEMO_AND_EV
 ## Docs
 
 - [`docs/PROXY_IMPLEMENTATION.md`](./docs/PROXY_IMPLEMENTATION.md) — proxy implementation details
+- [`docs/REGION_EVIDENCE_DESIGN.md`](./docs/REGION_EVIDENCE_DESIGN.md) — Region Evidence route, semantic labels, and crop generation
 - [`DESIGN.md`](./DESIGN.md) — architecture and product direction
 - [`docs/DEMO_AND_EVAL.md`](./docs/DEMO_AND_EVAL.md) — demo, eval, and measurement commands
 

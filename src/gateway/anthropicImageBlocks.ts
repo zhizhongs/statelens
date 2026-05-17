@@ -75,6 +75,19 @@ export function replaceAnthropicImageBlockWithText(
   image: ExtractedImageBlock,
   text: string
 ): unknown {
+  return replaceAnthropicImageBlockWithBlocks(body, image, [
+    { type: 'text', text },
+  ]);
+}
+
+// Replace a single image block with one or more arbitrary content blocks. The
+// Region Evidence proxy path uses this to swap the full screenshot for one
+// text block plus N image blocks (the changed-region crops).
+export function replaceAnthropicImageBlockWithBlocks(
+  body: unknown,
+  image: ExtractedImageBlock,
+  blocks: unknown[]
+): unknown {
   const next = cloneJson(body);
   if (!isRecord(next) || !Array.isArray(next.messages)) {
     throw new Error('Anthropic request body is not an object with messages[]');
@@ -89,7 +102,7 @@ export function replaceAnthropicImageBlockWithText(
     throw new Error('Selected Anthropic image block index is out of bounds');
   }
 
-  message.content[image.contentIndex] = { type: 'text', text };
+  message.content.splice(image.contentIndex, 1, ...blocks);
   return next;
 }
 

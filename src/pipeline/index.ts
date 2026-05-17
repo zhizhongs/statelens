@@ -14,6 +14,11 @@ import {
 import { SessionTimeline } from './timeline.js';
 import { tryGetImageDimensions } from '../utils/image.js';
 import { shouldExpectVisualChange } from './actionExpectation.js';
+import {
+  deleteSession,
+  getOrCreateSession,
+  peekSession,
+} from './sessionStore.js';
 
 export interface ChangedRegion {
   x: number;
@@ -28,6 +33,34 @@ export interface TextDiff {
   removed: string[];
 }
 
+// Region Evidence types — docs/REGION_EVIDENCE_DESIGN.md.
+// Kept additive so existing ObservationResult consumers are not broken.
+export type ObservationConfidence = 'high' | 'medium' | 'low';
+
+export type EvidenceRegionSource = 'heuristic' | 'ocr' | 'vlm' | 'mixed';
+
+export interface EvidenceRegion {
+  id: string;
+  label: string;
+  // [left, top, right, bottom] — easier for downstream consumers and matches
+  // the shape rendered in the observation text format.
+  bbox: [number, number, number, number];
+  source: EvidenceRegionSource;
+  confidence: ObservationConfidence;
+  text?: string[];
+}
+
+export interface VisualEvidence {
+  id: string;
+  region_id: string;
+  kind: 'crop';
+  media_type: 'image/png' | 'image/jpeg';
+  width: number;
+  height: number;
+  data_base64?: string;
+  file_path?: string;
+}
+
 export interface ObservationResult {
   changed: boolean;
   keyframe: boolean;
@@ -38,6 +71,38 @@ export interface ObservationResult {
   text_diff: TextDiff;
   vlm_called: boolean;
   latency_ms: number;
+  // Optional so the existing observe() contract remains additive — Region
+  // Evidence callers always populate it, the legacy code path leaves it unset.
+  confidence?: ObservationConfidence;
+}
+
+export interface EvidenceObservation {
+  changed: boolean;
+  keyframe: boolean;
+  importance_score: number;
+  confidence: ObservationConfidence;
+  event_type: string;
+  event_summary: string;
+  changed_regions: EvidenceRegion[];
+  text_diff: TextDiff;
+  visual_evidence: VisualEvidence[];
+  vlm_called: boolean;
+  latency_ms: number;
+}
+
+// Geometry helper used both internally (region labeling, formatting) and by
+// downstream consumers that want to convert legacy ChangedRegion to bbox form.
+export function bboxFromRegion(region: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}): [number, number, number, number] {
+  const x1 = Math.round(region.x);
+  const y1 = Math.round(region.y);
+  const x2 = Math.round(region.x + region.w);
+  const y2 = Math.round(region.y + region.h);
+  return [x1, y1, x2, y2];
 }
 
 export interface TimelineEvent {
@@ -63,34 +128,6 @@ export interface TimelineResult {
 export interface VlmUsage {
   input_tokens: number;
   output_tokens: number;
-}
-
-const sessions = new Map<string, SessionTimeline>();
-
-function configuredMaxSessions(): number {
-  const parsed = Number.parseInt(process.env.STATELENS_MAX_SESSIONS ?? '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 100;
-}
-
-function getOrCreateSession(sessionId: string): SessionTimeline {
-  const existing = sessions.get(sessionId);
-  if (existing) {
-    // Touch the session so the Map remains an LRU cache for long-running MCP use.
-    sessions.delete(sessionId);
-    sessions.set(sessionId, existing);
-    return existing;
-  }
-
-  const session = new SessionTimeline(sessionId);
-  sessions.set(sessionId, session);
-
-  while (sessions.size > configuredMaxSessions()) {
-    const oldest = sessions.keys().next().value;
-    if (typeof oldest !== 'string') break;
-    sessions.delete(oldest);
-  }
-
-  return session;
 }
 
 function emptyTextDiff(): TextDiff {
@@ -440,7 +477,7 @@ export async function observe(
 }
 
 export function getTimeline(sessionId: string = 'default'): TimelineResult {
-  const session = sessions.get(sessionId);
+  const session = peekSession(sessionId);
   if (!session) {
     return {
       session_id: sessionId,
@@ -457,7 +494,7 @@ export function getTimeline(sessionId: string = 'default'): TimelineResult {
 }
 
 export function resetSession(sessionId: string = 'default'): void {
-  sessions.delete(sessionId);
+  deleteSession(sessionId);
 }
 
 // Exposed for eval/measure_tokens.ts honest accounting (DESIGN.md Section 11.1).

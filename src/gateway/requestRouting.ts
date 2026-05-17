@@ -1,6 +1,13 @@
 import type { ObservationRoute } from '../adapters/routeObservation.js';
-import type { ObservationResult } from '../pipeline/index.js';
-import { replaceAnthropicImageBlockWithText } from './anthropicImageBlocks.js';
+import type {
+  EvidenceObservation,
+  ObservationResult,
+  VisualEvidence,
+} from '../pipeline/index.js';
+import {
+  replaceAnthropicImageBlockWithBlocks,
+  replaceAnthropicImageBlockWithText,
+} from './anthropicImageBlocks.js';
 import type {
   ExtractedImageBlock,
   GatewayRewriteResult,
@@ -11,12 +18,29 @@ function formatList(label: string, values: string[]): string | null {
   return `${label}: ${values.map((v) => JSON.stringify(v)).join(', ')}`;
 }
 
-export function formatObservationText(observation: ObservationResult): string {
+function isEvidenceObservation(
+  observation: ObservationResult | EvidenceObservation
+): observation is EvidenceObservation {
+  return (
+    'visual_evidence' in observation &&
+    Array.isArray((observation as EvidenceObservation).visual_evidence)
+  );
+}
+
+export function formatObservationText(
+  observation: ObservationResult | EvidenceObservation
+): string {
   const lines = [
     'StateLens observation for the latest UI screenshot:',
     `Event: ${observation.event_type}`,
     `Summary: ${observation.event_summary}`,
   ];
+
+  if (isEvidenceObservation(observation)) {
+    lines.push(`Confidence: ${observation.confidence}`);
+  } else if (observation.confidence) {
+    lines.push(`Confidence: ${observation.confidence}`);
+  }
 
   const added = formatList('Text appeared', observation.text_diff.added);
   const removed = formatList('Text disappeared', observation.text_diff.removed);
@@ -24,8 +48,15 @@ export function formatObservationText(observation: ObservationResult): string {
   if (removed) lines.push(removed);
 
   if (observation.changed_regions.length) {
-    const labels = [...new Set(observation.changed_regions.map((r) => r.label))];
-    lines.push(`Regions changed: ${labels.join(', ')}`);
+    if (isEvidenceObservation(observation)) {
+      lines.push('Changed regions:');
+      observation.changed_regions.forEach((region, index) => {
+        lines.push(`${index + 1}. ${region.label}, bbox: [${region.bbox.join(', ')}]`);
+      });
+    } else {
+      const labels = [...new Set(observation.changed_regions.map((r) => r.label))];
+      lines.push(`Regions changed: ${labels.join(', ')}`);
+    }
   }
 
   lines.push('');
@@ -36,7 +67,9 @@ export function formatObservationText(observation: ObservationResult): string {
   return lines.join('\n');
 }
 
-export function formatNoChangeText(observation: ObservationResult): string {
+export function formatNoChangeText(
+  observation: ObservationResult | EvidenceObservation
+): string {
   return [
     'StateLens observation for the latest UI screenshot:',
     `Event: ${observation.event_type || 'no_change'}`,
@@ -44,6 +77,64 @@ export function formatNoChangeText(observation: ObservationResult): string {
     '',
     'The screenshot image was removed to save vision tokens. Continue from the prior UI state unless the task explicitly requires raw visual inspection.',
   ].join('\n');
+}
+
+export function formatEvidenceObservationText(
+  observation: EvidenceObservation,
+  contextLabel: 'region_evidence' | 'context_snapshot'
+): string {
+  const lines: string[] = [
+    'StateLens observation for the latest UI screenshot:',
+    `Event: ${observation.event_type}`,
+    `Summary: ${observation.event_summary}`,
+    `Confidence: ${observation.confidence}`,
+  ];
+
+  const added = formatList('Text appeared', observation.text_diff.added);
+  const removed = formatList('Text disappeared', observation.text_diff.removed);
+  if (added) lines.push(added);
+  if (removed) lines.push(removed);
+
+  if (observation.changed_regions.length) {
+    lines.push('Changed regions:');
+    observation.changed_regions.forEach((region, index) => {
+      const evidenceId =
+        observation.visual_evidence.find((ev) => ev.region_id === region.id)?.id;
+      const evidenceSuffix = evidenceId ? `, evidence: ${evidenceId}` : '';
+      lines.push(
+        `${index + 1}. ${region.label}, bbox: [${region.bbox.join(', ')}]${evidenceSuffix}`
+      );
+    });
+  }
+
+  lines.push('');
+  if (contextLabel === 'region_evidence') {
+    lines.push(
+      'The full screenshot was removed to save vision tokens. The attached crops are the changed regions only.'
+    );
+  } else {
+    lines.push(
+      'The full screenshot was downscaled or partially summarized to save vision tokens. The attached crops cover the most important changed regions.'
+    );
+  }
+
+  return lines.join('\n');
+}
+
+function buildCropImageBlocks(evidence: VisualEvidence[]) {
+  // Only base64-encoded crops can ride the Anthropic message body. File-backed
+  // crops would require an upload first, which is out of scope for the proxy
+  // rewrite — fall back to text-only routes if base64 data is missing.
+  return evidence
+    .filter((ev) => typeof ev.data_base64 === 'string' && ev.data_base64.length > 0)
+    .map((ev) => ({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: ev.media_type,
+        data: ev.data_base64,
+      },
+    }));
 }
 
 function shouldForwardUnchanged(route: ObservationRoute): string | null {
@@ -86,6 +177,41 @@ export function rewriteAnthropicRequestForRoute(args: {
       action: 'forward_unchanged',
       reason: unchangedReason,
       requestBody,
+      observation: route.observation,
+      route,
+    };
+  }
+
+  if (route.route === 'use_region_evidence' || route.route === 'use_context_snapshot') {
+    const cropBlocks = buildCropImageBlocks(route.evidence);
+    if (cropBlocks.length === 0) {
+      // No usable crops (e.g. file-only encoding). Fall back to the text-only
+      // rewrite — the model still gets the StateLens summary, just without
+      // image evidence.
+      return {
+        action: 'forward_rewritten',
+        reason: `${route.route}:text_fallback`,
+        requestBody: replaceAnthropicImageBlockWithText(
+          requestBody,
+          image,
+          formatObservationText(route.observation)
+        ),
+        observation: route.observation,
+        route,
+      };
+    }
+
+    const text = formatEvidenceObservationText(
+      route.observation,
+      route.route === 'use_region_evidence' ? 'region_evidence' : 'context_snapshot'
+    );
+    return {
+      action: 'forward_rewritten',
+      reason: route.route,
+      requestBody: replaceAnthropicImageBlockWithBlocks(requestBody, image, [
+        { type: 'text', text },
+        ...cropBlocks,
+      ]),
       observation: route.observation,
       route,
     };
