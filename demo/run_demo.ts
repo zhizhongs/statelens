@@ -149,7 +149,6 @@ async function main(): Promise<void> {
     console.log(`  input tokens   ${totalIn.toLocaleString()}`);
     console.log(`  output tokens  ${totalOut.toLocaleString()}`);
   }
-  console.log(`  wall time      ${(ms / 1000).toFixed(1)}s`);
   console.log(`  ${chalk.bold('cost')}           $${totalCost.toFixed(4)}`);
   console.log('');
 
