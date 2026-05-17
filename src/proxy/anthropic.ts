@@ -21,6 +21,11 @@ import {
   sanitizeRequestHeaders,
   sanitizeResponseHeaders,
 } from './upstream.js';
+import {
+  buildSynthesizedResponse,
+  isFastModeEnabled,
+  shouldSynthesizeRoute,
+} from './synthesize.js';
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 8443;
@@ -201,6 +206,32 @@ export async function processAnthropicMessagesRequest(args: {
       latency_ms: Date.now() - started,
     });
     return forwardRaw(options, path, sanitizeRequestHeaders(headers), rawBody, forwarder);
+  }
+
+  // Experimental fast mode: if the pipeline routed us to skip_vision or
+  // use_text_observation, the proxy has all the information needed to answer
+  // the agent itself. Synthesize an Anthropic Message locally — no upstream
+  // Sonnet call. Cuts the dominant cost (Sonnet TTFT + generation) on every
+  // pipeline-rewriteable frame. See docs/PROXY_IMPLEMENTATION.md for the
+  // honest tradeoffs (tool_use agents will break, accuracy maps differently).
+  if (isFastModeEnabled() && rewrite.route && shouldSynthesizeRoute(rewrite.route)) {
+    const synthesized = buildSynthesizedResponse({
+      requestBody: body,
+      route: rewrite.route,
+    });
+    proxyLog(options, 'info', {
+      request_id: context.requestId,
+      provider: 'anthropic',
+      session_id: context.sessionId,
+      route: rewrite.route.route,
+      reason: 'fast_mode_synthesized',
+      event_type: rewrite.observation?.event_type,
+      vlm_called: rewrite.observation?.vlm_called,
+      rewritten: false,
+      synthesized: true,
+      latency_ms: Date.now() - started,
+    });
+    return Response.json(synthesized, { status: 200 });
   }
 
   proxyLog(options, 'info', {

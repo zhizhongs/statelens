@@ -388,21 +388,43 @@ export async function observe(
       eventType = inferEventType(textDiff);
       eventSummary = buildTextSummary(textDiff, regions);
     } else if (scoring.shouldCallVlm) {
-      // Stage 5: selective VLM. If the model/API fails, return a local fallback
-      // keyframe instead of throwing out of the user-facing pipeline.
-      const usageBefore = getCumulativeUsage();
-      try {
-        const vlmResult = await timedStage(session, 'stage5.vlmExplain', () =>
-          vlmExplain(prev, screenshotBuffer, regions)
-        );
-        eventType = vlmResult.eventType;
-        eventSummary = vlmResult.summary;
-        vlmCalled = true;
-      } catch (err) {
-        const usageAfter = getCumulativeUsage();
-        vlmCalled = usageIncreased(usageBefore, usageAfter);
-        eventType = inferEventType(textDiff);
-        eventSummary = `${buildTextSummary(textDiff, regions)}; VLM explanation unavailable (${shortError(err)})`;
+      // Async Haiku mode: skip the synchronous Haiku call, return a
+      // spatial-only observation now, and fire Haiku in the background so
+      // the timeline still gets enriched. Cuts ~1.7s/frame off the critical
+      // path at the cost of returning a less specific text observation to
+      // the caller. Implied by STATELENS_PROXY_FAST=1, or opt in explicitly
+      // via STATELENS_PROXY_ASYNC_HAIKU=1 — the latter lets you keep
+      // accurate-mode synthesis while still skipping the Haiku wait.
+      const asyncHaiku =
+        process.env.STATELENS_PROXY_FAST === '1' ||
+        process.env.STATELENS_PROXY_ASYNC_HAIKU === '1';
+      if (asyncHaiku) {
+        eventType = 'ui_change';
+        eventSummary = buildRegionSummary(regions);
+        // Fire-and-forget Haiku — errors are swallowed because nothing is
+        // waiting on this. Cumulative usage still gets counted via vlmExplainer's
+        // module-level counter so /usage stays honest.
+        void vlmExplain(prev, screenshotBuffer, regions).catch(() => {
+          /* async, no-op on failure */
+        });
+        vlmCalled = true; // counted because the call will happen, just async
+      } else {
+        // Stage 5: selective VLM. If the model/API fails, return a local fallback
+        // keyframe instead of throwing out of the user-facing pipeline.
+        const usageBefore = getCumulativeUsage();
+        try {
+          const vlmResult = await timedStage(session, 'stage5.vlmExplain', () =>
+            vlmExplain(prev, screenshotBuffer, regions)
+          );
+          eventType = vlmResult.eventType;
+          eventSummary = vlmResult.summary;
+          vlmCalled = true;
+        } catch (err) {
+          const usageAfter = getCumulativeUsage();
+          vlmCalled = usageIncreased(usageBefore, usageAfter);
+          eventType = inferEventType(textDiff);
+          eventSummary = `${buildTextSummary(textDiff, regions)}; VLM explanation unavailable (${shortError(err)})`;
+        }
       }
     } else {
       eventType = 'ui_change';

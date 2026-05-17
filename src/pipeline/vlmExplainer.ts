@@ -11,11 +11,22 @@ import sharp from 'sharp';
 import type { ChangedRegion, VlmUsage } from './index.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
-const MAX_TOKENS = 200;
+// Haiku response is a small JSON ({event_type, summary, important_text})
+// — empirically ~60-90 tokens. 120 leaves margin without paying for an
+// allocation Sonnet generation latency budget we never use.
+const MAX_TOKENS = 120;
 // Downscale screenshots before sending to Haiku. Anthropic prices images by
 // tile count, which scales with resolution. 768px on the long edge keeps UI
 // text readable while dropping per-image input tokens ~3-4x vs full-res.
-const VLM_MAX_EDGE = 768;
+// Configurable via STATELENS_VLM_MAX_EDGE — smaller = cheaper + faster Haiku
+// but risks losing legibility of small UI text. 384-768 is the practical range.
+function configuredVlmMaxEdge(): number {
+  const raw = process.env.STATELENS_VLM_MAX_EDGE;
+  const parsed = Number.parseInt(raw ?? '', 10);
+  if (Number.isFinite(parsed) && parsed >= 128 && parsed <= 2048) return parsed;
+  return 768;
+}
+const VLM_MAX_EDGE = configuredVlmMaxEdge();
 
 let cumulativeUsage: VlmUsage = { input_tokens: 0, output_tokens: 0 };
 let client: Anthropic | null = null;

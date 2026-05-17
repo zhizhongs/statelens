@@ -33,6 +33,10 @@ describe('ocrDiff', () => {
     ocrMock.workerCreateCalls.value = 0;
     ocrMock.workerCreateLangs.length = 0;
     delete process.env.STATELENS_OCR_LANGS;
+    // Force single-worker pool for tests that assert on worker-create counts.
+    // Production default is 4; tests opting into multi-worker behavior set this
+    // explicitly inside the test body.
+    process.env.STATELENS_OCR_POOL_SIZE = '1';
     await resetOcrWorker();
   });
 
@@ -144,6 +148,26 @@ describe('ocrDiff', () => {
       process.env.STATELENS_OCR_LANGS = '   ';
       await prewarmOcrWorker();
       expect(ocrMock.workerCreateLangs[0]).toBe('eng');
+    });
+  });
+
+  describe('worker pool (STATELENS_OCR_POOL_SIZE)', () => {
+    it('creates N workers when STATELENS_OCR_POOL_SIZE=N', async () => {
+      process.env.STATELENS_OCR_POOL_SIZE = '4';
+      await resetOcrWorker();
+      await prewarmOcrWorker();
+      expect(ocrMock.workerCreateCalls.value).toBe(4);
+      // All workers get the same language config.
+      for (const lang of ocrMock.workerCreateLangs) {
+        expect(lang).toBe('eng');
+      }
+    });
+
+    it('caps pool size at 8 to avoid runaway worker creation', async () => {
+      process.env.STATELENS_OCR_POOL_SIZE = '100';
+      await resetOcrWorker();
+      await prewarmOcrWorker();
+      expect(ocrMock.workerCreateCalls.value).toBe(8);
     });
   });
 });
