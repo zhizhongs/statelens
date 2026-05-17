@@ -1,6 +1,6 @@
 # StateLens
 
-> Screenshot gateway for computer-use agents. StateLens ships as an MCP server, in-process routing library, and local Anthropic-compatible proxy. **Measured: 70-82% input-token reduction and 81-90% cost reduction** on real Anthropic API calls across two UI flows.
+> Screenshot gateway for computer-use agents. Drop-in Anthropic-compatible proxy that cuts input tokens 46-59% by replacing redundant screenshots with compact text observations. Same agent code, one env var change. **Measured: 70-82% input-token reduction and 81-90% cost reduction** on real Anthropic API calls across two UI flows.
 
 StateLens sits between a UI agent and its reasoning model. It watches screenshot streams, filters redundant frames, extracts semantic state changes, and replaces expensive image input with compact text observations when it is safe to do so.
 
@@ -14,9 +14,9 @@ StateLens is a **cost-arbitrage pipeline**. It uses a cheap-but-capable vision m
 
 | Component | Supports | Multi-provider? |
 |---|---|---|
+| **Local API proxy** (`statelens proxy`) — **the recommended path** | Anthropic only today; OpenAI / Gemini planned | No (today) |
 | **In-process library** (`observe`, `routeObservation`, `captureAndRoute`) | Any LLM provider you call yourself | **Yes — model-agnostic by design** |
-| **Local API proxy** (`statelens proxy`) | Anthropic only — speaks `POST /v1/messages` | No (today) |
-| **MCP server** (`statelens serve`) | Any MCP-compatible client | Yes |
+| MCP server (`statelens serve`) — **secondary** (see [+27% MCP overhead investigation](./RESULTS.md)) | Any MCP-compatible client | Yes |
 | **Internal VLM** (for the text observation step) | Anthropic Haiku | Hard-coded today; configurable VLM provider planned for v0.2.0 |
 
 **Requirements**: an API key for whichever vision model you use. The default install uses Anthropic Haiku internally, so the proxy and the library's `observe()` need `ANTHROPIC_API_KEY` set. The library can be wired in front of any model for the *primary* call (the one the agent makes); only the internal Haiku step is currently Anthropic-bound.
@@ -48,14 +48,14 @@ Three commands, one terminal, real Anthropic API dollars. No code changes to you
 ### 1. Install
 
 ```bash
-npm install -g statelens
+npm install -g statelens-sdk
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ### 2. Start The Proxy
 
 ```bash
-statelens proxy --port 18443
+statelens proxy --provider anthropic --port 8443
 ```
 
 The proxy is an Anthropic-compatible endpoint. It intercepts `POST /v1/messages`, runs the StateLens pipeline on the screenshot blocks, and forwards a rewritten request upstream.
@@ -66,32 +66,33 @@ Any Anthropic SDK-based computer-use agent works. The only line that changes:
 
 ```ts
 const client = new Anthropic({
-  baseURL: 'http://127.0.0.1:18443',  // ← that's the entire integration
+  baseURL: 'http://127.0.0.1:8443',  // ← that's the entire integration
 });
 ```
 
-### 4. Run The A/B And Read The Ledger
+### 4. Reproduce The Numbers
 
 ```bash
-npm run measure -- demo/screenshots/login_flow
+git clone https://github.com/zhizhongs/statelens.git && cd statelens
+npm install && npm run build
+bash demo/record.sh
 ```
 
-You get a one-page report straight from `response.usage.input_tokens`:
+You get a one-page report straight from `response.usage.input_tokens`, comparing the same agent code running direct vs through the proxy:
 
 ```text
-Task: 12-frame login flow  •  Model: claude-sonnet-4-6
-─────────────────────────────────────────────────────────────
-Baseline (raw images)        StateLens proxy
-  36,255 input tokens          6,562 input tokens
-  $0.1162                      $0.0115
-─────────────────────────────────────────────────────────────
-  → 81.9% token reduction   90.1% cost reduction   100% accuracy
+                          direct      via proxy
+  input tokens             18996         10215
+  cost (USD)            $0.066768     $0.027457
+
+  token reduction: 46.2%
+  cost  reduction: 58.9%
 ```
 
 Inspect what the proxy actually did:
 
 ```bash
-curl http://127.0.0.1:18443/sessions/<id>/timeline
+curl http://127.0.0.1:8443/sessions/<id>/timeline
 ```
 
 Numbers are real Anthropic API token counts and include the Haiku tokens StateLens spends internally — no "shifted to a cheaper model" trick. Full methodology in [`RESULTS.md`](./RESULTS.md).
@@ -144,13 +145,13 @@ Proxy behavior:
 - Does not MITM traffic or require a custom CA certificate.
 - Does not synthesize provider responses by default.
 
-## Use MCP
+## Use MCP (secondary)
 
-Use MCP when your client can discover tools and you want StateLens observations available inside the agent. MCP remains a first-class integration; the proxy is an additional wrapper around the same pipeline.
+> **Prefer the proxy if you have the choice.** We dogfooded an MCP-based Claude Code session against the same flow and measured **+27% MORE expensive** than baseline — MCP tool definitions, tool-call arg payloads, and JSON cache churn dominated short sessions. The proxy form has zero per-turn tax. Full investigation in [`RESULTS.md`](./RESULTS.md).
 
-### Cursor
+MCP makes sense only when the client can't take a `baseURL` override (some IDEs, some legacy clients). Otherwise, use the proxy.
 
-Add to `~/.cursor/mcp.json`:
+If you do want MCP, add to `~/.cursor/mcp.json` (or the equivalent for Claude Code / Claude Desktop):
 
 ```json
 {
@@ -163,15 +164,7 @@ Add to `~/.cursor/mcp.json`:
 }
 ```
 
-### Claude Code
-
-Add to `~/.claude/mcp.json` using the same shape.
-
-### Claude Desktop
-
-Add to `claude_desktop_config.json` using the same shape.
-
-MCP caveat: tool use is voluntary. For transparent cost reduction, prefer the proxy when your SDK supports a base URL override.
+Tool use is voluntary — the agent has to decide to call StateLens tools. That's the main reason the proxy is preferred: it's automatic and transparent.
 
 ## Use In Process
 
@@ -210,12 +203,15 @@ const route = routeObservation(observation);
 
 ## Integration Surfaces
 
+Ordered by recommendation, most to least:
+
 | Surface | Status | Best for |
 |---|---|---|
-| Local API proxy (`statelens proxy`) | Built for Anthropic | SDK-based agents or binaries that support `baseURL` / endpoint overrides |
-| MCP server (`statelens serve`) | Built | Cursor, Claude Code, Claude Desktop, and agents that can choose to call tools |
-| In-process routing helper | Built | Custom Playwright/Puppeteer/browser-use style loops |
-| SDK middleware | Planned | Apps that instantiate the Anthropic/OpenAI SDK in code and can wrap the client |
+| **Local API proxy** (`statelens proxy`) | Built for Anthropic | SDK-based agents or binaries that support `baseURL` / endpoint overrides. **Recommended.** Transparent, no per-turn tax. |
+| **In-process routing helper** | Built, model-agnostic | Custom Playwright/Puppeteer/browser-use style loops where you control the agent code. Highest savings ceiling (82-90%). |
+| MCP server (`statelens serve`) | Built but secondary | Clients that can't take a `baseURL` override. Comes with per-turn MCP overhead — see the [+27% Claude Code regression](./RESULTS.md) before choosing this surface. |
+| SDK middleware | Planned (v0.2.0) | Apps that instantiate the Anthropic/OpenAI SDK in code and can wrap the client |
+| OpenAI / Gemini proxy | Planned (v0.2.0) | Same as the Anthropic proxy but for other providers |
 
 All surfaces use the same pipeline:
 
