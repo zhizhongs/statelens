@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StateLens - Screenshot Gateway for UI Agents</title>
+    <meta
+      name="description"
+      content="StateLens cuts computer-use agent vision spend by routing redundant screenshots into compact semantic observations."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="StateLens home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>StateLens</span>
+      </a>
+      <nav class="nav-links" aria-label="Page sections">
+        <a href="#usage">Usage</a>
+        <a href="#proof">Results</a>
+        <a href="#surfaces">Surfaces</a>
+        <a href="../README.md">Docs</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-visual" aria-hidden="true">
+          <div class="screenshot-strip strip-a">
+            <img src="../demo/screenshots/login_flow/001.png" alt="" />
+            <img src="../demo/screenshots/login_flow/010.png" alt="" />
+            <img src="../demo/screenshots/checkout_flow/004.png" alt="" />
+          </div>
+          <div class="screenshot-strip strip-b">
+            <img src="../demo/screenshots/checkout_flow/001.png" alt="" />
+            <img src="../demo/screenshots/login_flow/012.png" alt="" />
+            <img src="../demo/screenshots/checkout_flow/009.png" alt="" />
+          </div>
+          <canvas id="signal-canvas"></canvas>
+        </div>
+
+        <div class="hero-copy">
+          <p class="eyebrow">Screenshot gateway for computer-use agents</p>
+          <h1 id="hero-title">StateLens</h1>
+          <p class="hero-subtitle">
+            Stop paying for screenshots that did not change. StateLens gates
+            Anthropic vision requests, replaces safe frames with semantic text,
+            and fails open when raw pixels are needed. The shipped proxy now
+            shows measured cost reduction in real SDK traffic.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#usage">Start routing</a>
+            <a class="button secondary" href="#proof">See the numbers</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="metrics-band" id="proof" aria-label="Measured results">
+        <div class="metric">
+          <span class="metric-value">31-59%</span>
+          <span class="metric-label">proxy cost reduction</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value">46.7%</span>
+          <span class="metric-label">total input reduction in single-image mode</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value">100%</span>
+          <span class="metric-label">lenient accuracy in fair proxy validation</span>
+        </div>
+      </section>
+
+      <section class="section split" id="usage">
+        <div>
+          <p class="section-kicker">Primary path</p>
+          <h2>Install it, then run a local Anthropic proxy.</h2>
+          <p>
+            Point an SDK-based agent at StateLens with
+            <code>ANTHROPIC_BASE_URL</code>. Screenshot-bearing requests are
+            inspected before Anthropic sees them. Safe frames become text
+            observations. Risky frames pass through unchanged.
+          </p>
+        </div>
+        <div class="code-panel" aria-label="Proxy command">
+          <div class="code-title">Install and start</div>
+          <pre><code>npm install -g statelens-sdk
+
+export ANTHROPIC_API_KEY=sk-ant-...
+statelens proxy --provider anthropic --port 8443
+
+export ANTHROPIC_BASE_URL=http://127.0.0.1:8443
+curl http://127.0.0.1:8443/health</code></pre>
+        </div>
+      </section>
+
+      <section class="section process" aria-labelledby="process-title">
+        <p class="section-kicker">What happens inside</p>
+        <h2 id="process-title">Cheap local checks first, vision only when needed.</h2>
+        <div class="process-grid">
+          <article>
+            <span class="step-number">01</span>
+            <h3>Detect</h3>
+            <p>Compare consecutive screenshots with a visual gate and spatial diff.</p>
+          </article>
+          <article>
+            <span class="step-number">02</span>
+            <h3>Describe</h3>
+            <p>Use OCR and a small VLM only when text alone cannot explain the state change.</p>
+          </article>
+          <article>
+            <span class="step-number">03</span>
+            <h3>Route</h3>
+            <p>Forward raw pixels, send compact text, or continue from prior state.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section surfaces" id="surfaces" aria-labelledby="surfaces-title">
+        <p class="section-kicker">Integration surfaces</p>
+        <h2 id="surfaces-title">Choose the interception point you control.</h2>
+        <div class="surface-grid">
+          <article class="surface-card">
+            <h3>Proxy</h3>
+            <p>Best for SDK-based agents and binaries that support endpoint overrides.</p>
+            <span>Built for Anthropic</span>
+          </article>
+          <article class="surface-card">
+            <h3>MCP</h3>
+            <p>Best for Cursor, Claude Code, Claude Desktop, and tool-aware agents.</p>
+            <span>Built</span>
+          </article>
+          <article class="surface-card">
+            <h3>In process</h3>
+            <p>Best when you own the Playwright, Puppeteer, or browser-use loop.</p>
+            <span>Built</span>
+          </article>
+          <article class="surface-card">
+            <h3>SDK wrapper</h3>
+            <p>Best when you instantiate the provider SDK and want no extra process.</p>
+            <span>Designed</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="section proof-detail">
+        <div>
+          <p class="section-kicker">Newest proxy result</p>
+          <h2>Real SDK traffic, honest Haiku accounting.</h2>
+          <p>
+            The latest validation routes Anthropic SDK calls through the local
+            proxy and counts internal Haiku usage in the StateLens total. The
+            deeper in-process harness still shows 81-90% cost reduction, but
+            the shipped proxy numbers are the public headline.
+          </p>
+        </div>
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>Mode</th>
+              <th>Direct</th>
+              <th>StateLens</th>
+              <th>Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Prev + curr</td>
+              <td>$0.1160</td>
+              <td>$0.0796</td>
+              <td>-31.3%</td>
+            </tr>
+            <tr>
+              <td>Single image</td>
+              <td>$0.0670</td>
+              <td>$0.0272</td>
+              <td>-59.4%</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>StateLens</span>
+      <div class="footer-links">
+        <a href="../README.md">README</a>
+        <a href="../docs/PROXY_IMPLEMENTATION.md">Proxy spec</a>
+        <a href="../docs/SDK_MIDDLEWARE_IMPLEMENTATION.md">SDK spec</a>
+      </div>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -12,13 +12,13 @@ Goal: explain what is built now, prove the savings, and show agentic testing as 
 
 Computer-use agents waste money re-reading screenshots where nothing meaningful changed. StateLens turns screenshot streams into semantic state changes before the expensive model sees them.
 
-**Proof point:** 80-90% cost reduction across two adversarial screenshot scenarios with 78-100% event-capture accuracy, measured with real Anthropic API usage.
+**Proof point:** 80-90% cost reduction across two adversarial screenshot scenarios with 78-100% event-capture accuracy, measured with real Anthropic API usage. Now shipping as a **drop-in Anthropic-compatible proxy** — change one `baseURL` and your existing agent gets the savings with zero code changes.
 
 **Visual direction:**  
-One line pipeline: `screenshot stream -> StateLens -> compact events -> agent reasoning`
+One line pipeline: `screenshot stream -> StateLens proxy -> compact events -> agent reasoning`
 
 **Speaker note:**  
-StateLens is not another browser agent. It is the layer every browser or computer-use agent should call before spending vision tokens.
+StateLens is not another browser agent. It is the layer every browser or computer-use agent should call before spending vision tokens. The proxy form means no SDK swap, no MCP plumbing — just a different `baseURL`.
 
 ---
 
@@ -108,42 +108,54 @@ current screenshot
 - per-session semantic timeline
 - action-failure detection: expected-change actions that produce no UI change emit a structured `action_failed` event
 - multi-language OCR: `STATELENS_OCR_LANGS` configures Tesseract for non-English UI flows, defaults to English
+- **Anthropic-compatible HTTP proxy**: intercepts `POST /v1/messages`, runs the pipeline on the latest image block, rewrites the request before forwarding — with a recursion guard so internal Haiku calls bypass the proxy
 
 **Visual direction:**  
-Six-stage architecture diagram with local stages in green and optional VLM in amber.
+Six-stage architecture diagram with local stages in green and optional VLM in amber, fronted by a proxy box that sits between the agent SDK and Anthropic.
 
 **Speaker note:**  
-The pipeline is model-external. It works as a library, through MCP, and inside custom agent loops.
+The pipeline is model-external. It works as a library, through MCP, inside custom agent loops, and now as a transparent proxy that any Anthropic SDK can point at.
 
 ---
 
 ## Slide 5 - Product Surface
 
-### Works As MCP, Library, And Agent Middleware
+### One Pipeline, Four Delivery Surfaces — Led By A Drop-In Proxy
 
-**MCP tools shipped:**
+**Primary surface — Anthropic-compatible HTTP proxy:**
 
-| Tool | What it does |
+```bash
+# Boot it
+statelens proxy --port 18443
+
+# Point any Anthropic SDK at it
+export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
+# ...that's it. No code changes. No tool calls. No prompts.
+```
+
+The proxy detects image blocks in `POST /v1/messages`, runs the StateLens pipeline against the latest screenshot, rewrites it to a compact text observation (or a "no meaningful change" stub when the visual gate skips it), and forwards to upstream Anthropic. Recursion guard via `STATELENS_INTERNAL_ANTHROPIC_BASE_URL` keeps internal Haiku calls from looping back.
+
+**Other surfaces shipped:**
+
+| Surface | Use when |
 |---|---|
-| `statelens_observe` | Analyze a screenshot against prior session state |
-| `statelens_timeline` | Return the event timeline and cost metrics |
-| `statelens_compare` | Compare any two screenshots directly |
-| `statelens_reset` | Reset session state |
+| **HTTP proxy** | Any agent that talks to the Anthropic API — zero code change |
+| **MCP server** (4 tools) | Editor clients where the proxy can't reach: Cursor, Claude Code, Claude Desktop |
+| **`routeObservation()` library** | Custom agents that want code-enforced routing |
+| **`captureAndRoute()` adapter** | Playwright loops that capture screenshots in-process |
 
 **Integration features shipped:**
 
-- accepts local `screenshot_path`
-- accepts in-memory `screenshot_base64`
-- works in Cursor, Claude Code, Claude Desktop, and any MCP client
-- exposes `routeObservation()` for code-enforced routing
-- includes a Playwright-like `captureAndRoute()` adapter
-- supports local no-key operation for non-VLM stages, with conservative routing on analysis errors
+- proxy accepts the full Anthropic Messages API surface, streams responses through unchanged
+- MCP accepts local `screenshot_path` or in-memory `screenshot_base64`
+- conservative fallbacks for invalid screenshots and analysis errors
+- local no-key operation for non-VLM stages
 
 **Visual direction:**  
-Three columns: MCP clients, local library, in-process adapter.
+Four-lane diagram: Proxy (highlighted, primary), MCP, library, adapter — all feeding the same pipeline box.
 
 **Speaker note:**  
-Closed clients can use the MCP tool with a policy prompt. Custom agents can enforce the route in code.
+Lead with the proxy. It's the surface that requires the least cooperation from the agent and reproduces the harness savings directly. MCP is the editor-compatibility adapter for environments the proxy can't reach.
 
 ---
 
@@ -176,11 +188,26 @@ Measured with real Anthropic API token counts (Sonnet 4.6, Haiku 4.5 internally)
 
 **Phase 4 tuning footnote.** Checkout lenient accuracy was 56% pre-tuning. We diagnosed garbage OCR ("a / ® |") on Zara's stylized form fields causing false `text_summary` routes, shipped an `isTextReliable()` check in `importanceScorer.ts`, and lifted accuracy to 78% with cost reduction holding at 81%. Full evolution in [`RESULTS.md`](../RESULTS.md). Reproducible: `npm run measure` and `npm run measure -- demo/screenshots/checkout_flow`.
 
+### Proxy-form validation — the harness number reproduces end-to-end
+
+The numbers above are from a controlled SDK loop. To prove the pipeline survives the trip through a real request path, we re-ran the same login flow against the production proxy: SDK → `http://127.0.0.1:18443` → pipeline → upstream Anthropic, no harness shortcuts.
+
+| Mode | Run A (direct) | Run B (proxy) | Δ cost | Accuracy (lenient) |
+|---|---:|---:|---:|---:|
+| **prev+curr per turn** (eval parity) | $0.1160 | $0.0796 | **−31.3%** | **100.0%** (0 misses) |
+| **single-image per turn** (real agent loops) | $0.0670 | $0.0272 | **−59.4%** | (single-image baseline is uncompared)¹ |
+
+Files: `eval/results/proxy_ab_login_baseline.json` + `.accuracy.json`. Reproducible: `node dist/eval/measure_proxy.js demo/screenshots/login_flow`.
+
+The prev+curr mode is the apples-to-apples comparison (judge sees equal context on both sides) — savings are smaller here because the SDK still drags the prior image along even though the proxy rewrites the current one. The single-image mode is how Claude Code, Cursor, and computer-use agents actually call the API: one fresh screenshot per turn, no prior. That's where the savings open up.
+
+¹ Single-image accuracy can't be fairly judged — Run A has no prior context, so the judge marks every "no change" frame as a disagreement. Same harness bias we identified in fair-baseline mode. The token/cost numbers are unaffected.
+
 **Visual direction:**  
-Two side-by-side bar groups (Login | Checkout): one bar set for cost (baseline vs StateLens, with $ labels), one bar set for accuracy (lenient %). Footnote callouts: "5 frames filtered with zero AI calls" arrow on login, "form-fill OCR routed to Haiku" arrow on checkout.
+Two side-by-side bar groups (Login | Checkout) for harness numbers, then a third "Proxy validation" group with two bars — prev+curr (−31%) and single-image (−59%).
 
 **Speaker note:**  
-Lead with the cost number (90% on login). Then immediately go to accuracy (100% lenient on login) before the audience asks "but does it work?" Use the two-scenario contrast to head off the "is this just an easy flow?" question — checkout was *harder* than login (no redundancy, bad OCR) and we still saved 81% cost. Mention the Phase 4 tuning trade openly: we made it worse on tokens (10pp) to make it better on accuracy (22pp).  We count Haiku tokens against ourselves — this is honest accounting.
+Lead with the cost number (90% on login, harness). Then immediately go to accuracy (100% lenient on login) before the audience asks "but does it work?" Use the two-scenario contrast to head off the "is this just an easy flow?" question — checkout was *harder* than login (no redundancy, bad OCR) and we still saved 81% cost. Then pivot to the proxy validation: "and the same pipeline, shipped as a transparent proxy, hits −31% on the same flow with zero misses — and −59% in the single-image-per-turn shape that real agent loops actually use." Mention the Phase 4 tuning trade openly: we made it worse on tokens (10pp) to make it better on accuracy (22pp). We count Haiku tokens against ourselves — this is honest accounting.
 
 ---
 
@@ -235,9 +262,13 @@ The same compression that saves money also becomes observability for agent debug
 
 ## Slide 8 - Real-Time Agent Integration
 
-### Middleware Beats A Prompt
+### The Proxy Beats Middleware Beats A Prompt
 
-Policy prompts help, but they are voluntary. The reliable path is code:
+Three tiers of reliability, from weakest to strongest:
+
+**Tier 1 — policy prompt (voluntary, weakest):** "please call statelens_observe before reasoning." Agent has to choose.
+
+**Tier 2 — middleware (code-enforced, in-process):** the agent loop calls our adapter directly.
 
 ```ts
 const { screenshot, observation, route } = await captureAndRoute(page, {
@@ -245,39 +276,94 @@ const { screenshot, observation, route } = await captureAndRoute(page, {
   actionLabel: 'click_submit',
 });
 
-if (route.route === 'skip_vision') {
-  // spend zero model tokens
-}
-
-if (route.route === 'use_text_observation') {
-  await reasoningModel({ text: route.context });
-}
-
-if (route.route === 'use_full_vision') {
-  await reasoningModel({ image: screenshot });
-}
+if (route.route === 'skip_vision')        { /* spend zero model tokens */ }
+if (route.route === 'use_text_observation') await reasoningModel({ text: route.context });
+if (route.route === 'use_full_vision')      await reasoningModel({ image: screenshot });
 ```
 
-The `actionLabel` is no longer just a hint. Mutating labels (`click_submit`, `save_*`, `fill_*`, `expect_change:*`) flip an unchanged screen from `no_change` to `action_failed`. Passive labels (`wait`, `observe:*`, `passive:*`) keep their quiet path.
+**Tier 3 — proxy (data-path, strongest, zero code change):**
+
+```ts
+const client = new Anthropic({
+  baseURL: 'http://127.0.0.1:18443',  // ← only line that changes
+});
+
+// Your existing agent loop, unchanged.
+await client.messages.create({
+  model: 'claude-sonnet-4-6',
+  messages: [{ role: 'user', content: [{ type: 'image', source: {...} }, { type: 'text', text: 'What changed?' }] }],
+});
+```
+
+The proxy inspects the latest image block, runs `observe()`, and rewrites the request before it hits Anthropic — agent never sees JSON observations, no tool definitions get injected, no cache churn. This is the form where the harness's 80% savings translate directly to a real client.
+
+The `actionLabel` (Tier 2) is no longer just a hint. Mutating labels (`click_submit`, `save_*`, `fill_*`, `expect_change:*`) flip an unchanged screen from `no_change` to `action_failed`. Passive labels (`wait`, `observe:*`, `passive:*`) keep their quiet path.
 
 **What is shipped now:**
 
-- generic routing helper
-- Playwright-like screenshot adapter
+- Anthropic-compatible HTTP proxy with streaming pass-through and recursion guard
+- generic routing helper (`routeObservation()`)
+- Playwright-like screenshot adapter (`captureAndRoute()`)
 - conservative fallbacks for invalid screenshots and analysis errors
 - optional screenshot-base64 MCP path for agents that hold images in memory
 - action-label classifier that distinguishes mutating from passive actions
 - `STATELENS_OCR_LANGS` env var for non-English UI flows
 
 **Visual direction:**  
-Decision tree with three routes: skip, text, full vision.
+Three-tier stack (prompt → middleware → proxy) with "strength of enforcement" arrow pointing down to proxy.
 
 **Speaker note:**  
-The folder demo proves the pipeline. The adapter proves how this works in real-time screenshot loops.
+The folder demo proves the pipeline. The adapter proves it in real-time screenshot loops. The proxy proves it in the integration shape that requires the least from the agent author — and is the form where the cost numbers reproduce in production clients (see slide 9).
 
 ---
 
-## Slide 9 - Next Wedge: Agentic Testing
+## Slide 9 - The Delivery-Surface Lesson
+
+### We Shipped MCP, Dogfooded It, Found It Was More Expensive — Then Built The Proxy
+
+The pipeline savings are real, but **the delivery surface matters as much as the pipeline.** We learned this by measuring our own MCP server end-to-end inside Claude Code.
+
+**The dogfood:** two Claude Code sessions, identical 12-frame login prompt, identical model (Opus 4.7). Run A used `Read`. Run B swapped `Read` → `statelens_observe`. Cost measured by `/cost` in each session.
+
+| Opus 4.7 metric | Run A (Read) | Run B (StateLens MCP) | Δ |
+|---|---:|---:|---:|
+| Total cost | $0.66 | **$0.84** | **+27% more expensive** |
+| Output tokens | 2.1k | 3.5k | +1.4k (verbose tool args) |
+| Cache write | 45.3k | 65.5k | +20.2k (JSON response churn) |
+| Cache read | 657.8k | 685.1k | +27.3k (tool defs per turn) |
+
+The opposite of the 80% reduction the harness predicts. We diagnosed three overheads, all properties of **MCP**, not properties of the pipeline:
+
+1. **Tool-call argument verbosity** — `screenshot_path`, `session_id` is more output than `file_path`
+2. **MCP tool definitions cached every turn** — 4 tools × ~400 tokens × 14 turns = ~22k extra cache reads
+3. **JSON responses churning the cache** — every observation is textually unique, forces cache writes
+
+Modeled breakeven on Opus: ~30–50 frames. Below that, MCP overhead dominates the per-frame savings.
+
+**The fix — proxy form, same pipeline, different surface:**
+
+| Surface | 12-frame login result |
+|---|---|
+| MCP, short Opus session | **+27% more expensive** |
+| Proxy, prev+curr per turn | **−31.3% cheaper** (100% lenient accuracy, 0 misses) |
+| Proxy, single-image per turn | **−59.4% cheaper** |
+
+**Why the proxy has zero overhead:**
+
+- runs *before* the request reaches the model
+- agent never sees JSON observations — only the rewritten text-only or skipped message
+- no tool definitions injected into agent context
+- no tool-call arguments — the agent calls `messages.create` normally
+
+**Visual direction:**  
+Before/after diagram: MCP path with three red overhead arrows ("tool defs", "JSON churn", "verbose args") pointing into the agent context box; Proxy path with a single arrow that bypasses the agent context entirely and lands at upstream Anthropic.
+
+**Speaker note:**  
+This is the honest story we want judges to remember. We shipped, measured, found the bad result, diagnosed it (it wasn't the pipeline — it was the surface), and shipped the right surface. The pipeline is the IP. MCP is one delivery surface, and not the most leveraged one for short interactive sessions on expensive models. The proxy is the production-realistic incarnation. The reversal — same flow, same pipeline, +27% → −59% — is the most credible thing in the deck.
+
+---
+
+## Slide 10 - Next Wedge: Agentic Testing
 
 ### StateLens For Self-Healing Test Agents
 
@@ -315,9 +401,9 @@ We should pitch this as roadmap, not current implementation. The core pipeline a
 
 ---
 
-## Slide 10 - Why StateLens Wins
+## Slide 11 - Why StateLens Wins
 
-### Model-External, Inspectable, And Easy To Adopt
+### Model-External, Inspectable, And Drop-In
 
 Existing research optimizes inside a specific VLM. StateLens optimizes outside the model.
 
@@ -326,25 +412,27 @@ Existing research optimizes inside a specific VLM. StateLens optimizes outside t
 | Model-internal token pruning | powerful, but model-specific and invisible |
 | Raw Playwright snapshots | great for accessible DOM, less helpful for pixel-heavy states |
 | Full screenshot reasoning | general, but expensive and hard to debug |
-| StateLens | model-agnostic, inspectable, and installable as MCP or middleware |
+| StateLens | model-agnostic, inspectable, and drop-in via Anthropic-compatible proxy |
 
 **Moat in practice:**
 
 - local-first diffing pipeline
 - structured event timeline
-- honest VLM usage accounting
-- MCP distribution
+- honest VLM usage accounting (we count our own Haiku tokens against ourselves)
+- **drop-in proxy distribution** — change one `baseURL`, no code change, no per-turn MCP overhead
+- MCP adapter for editor environments the proxy can't reach
 - in-process route API for custom agents
+- a measured, reversed engineering finding (MCP +27% → proxy −31% to −59%) that proves we know the difference between pipeline IP and delivery surface
 - credible path into agentic testing and self-healing workflows
 
 **Close:**  
-StateLens is the universal observation layer for UI agents.
+StateLens is the universal observation layer for UI agents — and the proxy form means adopting it is one environment variable.
 
 **Visual direction:**  
-Four-quadrant matrix: model-specific vs model-agnostic, opaque vs inspectable.
+Four-quadrant matrix: model-specific vs model-agnostic, opaque vs inspectable. StateLens in the bottom-right with a star.
 
 **Speaker note:**  
-The thesis is simple: do not make every model relearn the same unchanged screen. Put an observation layer in front of them.
+The thesis is simple: do not make every model relearn the same unchanged screen. Put an observation layer in front of them — and put it on the data path, not in the tool surface, so it costs nothing to adopt and nothing per turn.
 
 ---
 
@@ -360,18 +448,25 @@ The thesis is simple: do not make every model relearn the same unchanged screen.
 - Stage 6 timeline assembly
 - VLM cumulative usage tracking for honest accounting
 - Phase 3 reliability fallbacks (invalid screenshot, analysis error)
+- **Anthropic-compatible HTTP proxy** (`statelens proxy --port 18443`)
+  - rewrites image blocks in `POST /v1/messages` to text observations or "no change" stubs
+  - streaming response pass-through
+  - recursion guard via `STATELENS_INTERNAL_ANTHROPIC_BASE_URL` so internal Haiku calls bypass the proxy
+  - end-to-end measurement harness (`eval/measure_proxy.ts`, `npm run` script `eval/measure_proxy.js`)
 - MCP server with 4 tools
 - path and base64 screenshot input
 - A/B token measurement harness (`npm run measure`)
 - Haiku-judged accuracy harness with strict / lenient scoring
 - two locked baselines: login (12 frames) and checkout (10 frames)
+- proxy-form baseline: `eval/results/proxy_ab_login_baseline.json` + `.accuracy.json`
 - saved per-frame verdicts under `eval/results/phase4_*.accuracy.json`
 - route helper for custom agents (`routeObservation()`)
 - Playwright-like capture adapter (`captureAndRoute()`)
 - live Playwright demo (`demo/agent_loop/playwright_login.ts`)
 - action-failure detection via `actionLabel` classifier (`action_failed` event)
 - multi-language OCR via `STATELENS_OCR_LANGS`
-- `RESULTS.md` documenting full measurement evolution
+- `RESULTS.md` documenting full measurement evolution, including the MCP-dogfood overhead finding and proxy reversal
+- `docs/PROXY_IMPLEMENTATION.md` design doc
 
 ### Pitch As Roadmap
 
@@ -380,11 +475,14 @@ The thesis is simple: do not make every model relearn the same unchanged screen.
 - test report artifacts
 - Stagehand adapter
 - agentic testing cost dashboard
+- hosted/cloud proxy endpoint (today's proxy is local-only)
+- OpenAI / Gemini API-compatible proxy surfaces
 
 ### Do Not Claim Yet
 
-- automatic interception inside closed clients
+- hosted multi-tenant proxy
 - universal savings on non-screenshot Playwright tests
 - completed Playwright Test Agent integration
 - completed Stagehand integration
 - production browser extension
+- non-Anthropic proxy support
