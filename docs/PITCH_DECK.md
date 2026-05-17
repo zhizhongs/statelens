@@ -10,7 +10,7 @@ Goal: explain what is built now, prove the savings, and show agentic testing as 
 
 **The observation compression layer for UI agents.**
 
-Computer-use agents waste money re-reading screenshots where nothing meaningful changed. StateLens turns screenshot streams into semantic state changes before the expensive model sees them.
+Computer-use agents waste money re-reading screenshots where nothing meaningful changed. StateLens turns screenshot streams into the cheapest sufficient observation before the expensive model sees them.
 
 **Proof point:** 80-90% cost reduction across two adversarial screenshot scenarios with 78-100% event-capture accuracy, measured with real Anthropic API usage. Now shipping as a **drop-in Anthropic-compatible proxy** — change one `baseURL` and your existing agent gets the savings with zero code changes.
 
@@ -51,7 +51,7 @@ The waste is not that vision is useless. The waste is using full vision as the d
 
 ## Slide 3 - The Insight
 
-### Most UI State Changes Can Be Compressed Before Vision
+### Send The Cheapest Sufficient Evidence, Not Always Pixels
 
 StateLens asks a cheaper question first:
 
@@ -59,10 +59,20 @@ StateLens asks a cheaper question first:
 Did anything meaningful change?
 If yes, where?
 If text changed, what text?
-Only if local signals are insufficient, call a small VLM.
+What is the cheapest evidence the reasoning model needs?
 ```
 
-This gives the agent a structured observation:
+The current proxy ships the first, second, and final routes. The next hardening step is the middle of the ladder: changed-region visual evidence, so visually important local changes do not have to choose between lossy text and the full screenshot.
+
+| Route | What the reasoning model gets | Use when |
+|---|---|---|
+| `skip_vision` | "No meaningful change" stub | redundant frames |
+| `text_observation` | semantic event card | forms, errors, navigation, modals |
+| `region_evidence` | event card + 1-3 changed crops | localized visual changes where pixels matter |
+| `context_snapshot` | event card + low-res or annotated screenshot | layout-level changes |
+| `full_vision` | original screenshot | high-change, dense visual, or low-confidence frames |
+
+Example event card, which stays as the base layer:
 
 ```json
 {
@@ -71,15 +81,16 @@ This gives the agent a structured observation:
   "event_type": "error_appeared",
   "event_summary": "Text appeared: \"Invalid password\"",
   "text_diff": { "added": ["Invalid password"], "removed": [] },
+  "evidence": ["text_diff"],
   "vlm_called": false
 }
 ```
 
 **Visual direction:**  
-Before: huge screenshot. After: small JSON event card.
+Before: huge screenshot. After: evidence ladder with five rungs: skip, event card, changed-region crops, annotated/low-res context, full vision.
 
 **Speaker note:**  
-We are moving observation from pixels to state transitions.
+We are moving observation from pixels to state transitions, but not pretending text is always enough. The product direction is an evidence ladder: pay for the smallest payload that preserves the information the agent needs.
 
 ---
 
@@ -308,6 +319,53 @@ The `actionLabel` (Tier 2) is no longer just a hint. Mutating labels (`click_sub
 - optional screenshot-base64 MCP path for agents that hold images in memory
 - action-label classifier that distinguishes mutating from passive actions
 - `STATELENS_OCR_LANGS` env var for non-English UI flows
+- next route: `use_region_evidence` for event card + changed crops when visual grounding matters
+
+**Visual direction:**  
+Three-tier stack (prompt → middleware → proxy) with "strength of enforcement" arrow pointing down to proxy, plus an evidence-ladder legend beside the proxy.
+
+**Speaker note:**  
+The folder demo proves the pipeline. The adapter proves it in real-time screenshot loops. The proxy proves it in the integration shape that requires the least from the agent author — and is the form where the cost numbers reproduce in production clients (see slide 9).
+
+---
+
+## Slide 9 - The Delivery-Surface Lesson
+
+### We Shipped MCP, Dogfooded It, Found It Was More Expensive — Then Built The Proxy
+
+The pipeline savings are real, but **the delivery surface matters as much as the pipeline.** We learned this by measuring our own MCP server end-to-end inside Claude Code.
+
+**The dogfood:** two Claude Code sessions, identical 12-frame login prompt, identical model (Opus 4.7). Run A used `Read`. Run B swapped `Read` → `statelens_observe`. Cost measured by `/cost` in each session.
+
+| Opus 4.7 metric | Run A (Read) | Run B (StateLens MCP) | Δ |
+|---|---:|---:|---:|
+| Total cost | $0.66 | **$0.84** | **+27% more expensive** |
+| Output tokens | 2.1k | 3.5k | +1.4k (verbose tool args) |
+| Cache write | 45.3k | 65.5k | +20.2k (JSON response churn) |
+| Cache read | 657.8k | 685.1k | +27.3k (tool defs per turn) |
+
+The opposite of the 80% reduction the harness predicts. We diagnosed three overheads, all properties of **MCP**, not properties of the pipeline:
+
+1. **Tool-call argument verbosity** — `screenshot_path`, `session_id` is more output than `file_path`
+2. **MCP tool definitions cached every turn** — 4 tools × ~400 tokens × 14 turns = ~22k extra cache reads
+3. **JSON responses churning the cache** — every observation is textually unique, forces cache writes
+
+Modeled breakeven on Opus: ~30–50 frames. Below that, MCP overhead dominates the per-frame savings.
+
+**The fix — proxy form, same pipeline, different surface:**
+
+| Surface | 12-frame login result |
+|---|---|
+| MCP, short Opus session | **+27% more expensive** |
+| Proxy, prev+curr per turn | **−31.3% cheaper** (100% lenient accuracy, 0 misses) |
+| Proxy, single-image per turn | **−59.4% cheaper** |
+
+**Why the proxy has zero overhead:**
+
+- runs *before* the request reaches the model
+- agent never sees JSON observations — only the rewritten text-only or skipped message
+- no tool definitions injected into agent context
+- no tool-call arguments — the agent calls `messages.create` normally
 
 **Visual direction:**  
 Three-tier stack (prompt → middleware → proxy) with "strength of enforcement" arrow pointing down to proxy.
