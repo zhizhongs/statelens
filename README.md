@@ -6,6 +6,25 @@ StateLens sits between a UI agent and its reasoning model. It watches screenshot
 
 Use it when you are building or running screenshot-heavy browser/computer-use agents and want to stop paying for frames that did not meaningfully change.
 
+## Architecture in one paragraph
+
+StateLens is a **cost-arbitrage pipeline**. It uses a cheap-but-capable vision model (Anthropic Haiku by default) to extract text observations from screenshots, so your expensive primary model (Sonnet, GPT-4o, Gemini Pro — whichever you're committed to) only processes images on frames where vision genuinely matters. On frames that are pixel-identical to the prior frame, **no LLM is called at all** — the visual gate skips them locally. This means our savings are above and beyond any "just use a cheaper model" swap, because cheaper models still pay per frame; the visual gate doesn't.
+
+## What's supported today
+
+| Component | Supports | Multi-provider? |
+|---|---|---|
+| **In-process library** (`observe`, `routeObservation`, `captureAndRoute`) | Any LLM provider you call yourself | **Yes — model-agnostic by design** |
+| **Local API proxy** (`statelens proxy`) | Anthropic only — speaks `POST /v1/messages` | No (today) |
+| **MCP server** (`statelens serve`) | Any MCP-compatible client | Yes |
+| **Internal VLM** (for the text observation step) | Anthropic Haiku | Hard-coded today; configurable VLM provider planned for v0.2.0 |
+
+**Requirements**: an API key for whichever vision model you use. The default install uses Anthropic Haiku internally, so the proxy and the library's `observe()` need `ANTHROPIC_API_KEY` set. The library can be wired in front of any model for the *primary* call (the one the agent makes); only the internal Haiku step is currently Anthropic-bound.
+
+**Library is model-agnostic today**: if you control your agent loop, `observe()` returns a route decision (`skip_vision` / `use_text_observation` / `use_full_vision`) plus a text summary. You decide which model to call on the resulting route. See [Use In Process](#use-in-process) for the code.
+
+**Proxy is Anthropic-only today**: it speaks Anthropic's wire format (`/v1/messages`, base64 image content blocks). OpenAI- and Gemini-compatible proxies are planned for v0.2.0. If you need them sooner, the in-process library has zero provider lock-in.
+
 ## Install
 
 ```bash
