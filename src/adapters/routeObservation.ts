@@ -233,20 +233,18 @@ export function routeEvidenceObservation(
     };
   }
 
-  // Very low confidence on a keyframe means the pipeline isn't sure what it's
-  // looking at — show the model the raw pixels rather than guess.
-  if (observation.confidence === 'low') {
-    return {
-      route: 'use_full_vision',
-      reason: `Low-confidence keyframe (${observation.event_type}); fall back to raw vision.`,
-      observation,
-    };
-  }
-
   const regions = observation.changed_regions;
   const evidence = observation.visual_evidence;
   const labelsReliable = hasReliableLabels(regions);
 
+  // Evidence-route preference: when at least one region has an OCR/VLM-anchored
+  // label AND the cropper produced usable bytes, attach the crops even if the
+  // aggregate confidence flagged `low`. The aggregate goes low whenever ANY
+  // single region is low (regionCount >= 6, or a single heuristic-only region),
+  // but the cropper only ever ships the top maxCrops anyway — so the noisy tail
+  // shouldn't drag the whole observation back to forward_unchanged. The
+  // labelsReliable gate keeps us honest: with zero anchored labels we still
+  // fall through to full_vision below.
   if (allowEvidenceRoutes && regions.length > 0 && evidence.length > 0 && labelsReliable) {
     const fitsRegionEvidence =
       regions.length <= maxCrops &&
@@ -273,9 +271,20 @@ export function routeEvidenceObservation(
     };
   }
 
-  // Heuristic-only labels and text-sufficient keyframes both fall through to
-  // text_observation — the StateLens summary is enough and we don't waste
-  // vision tokens on crops with low-trust labels.
+  // No usable crops/labels. A low-confidence keyframe with nothing to attach
+  // means StateLens isn't sure what it's looking at — show the model the raw
+  // pixels rather than guess from a heuristic-only summary.
+  if (observation.confidence === 'low') {
+    return {
+      route: 'use_full_vision',
+      reason: `Low-confidence keyframe (${observation.event_type}) with no anchored evidence; fall back to raw vision.`,
+      observation,
+    };
+  }
+
+  // Heuristic-only labels (medium/high confidence) and text-sufficient
+  // keyframes fall through to text_observation — the StateLens summary is
+  // enough and we don't waste vision tokens on crops with low-trust labels.
   return {
     route: 'use_text_observation',
     context: formatEvidenceContext(observation),

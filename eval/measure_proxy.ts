@@ -177,7 +177,8 @@ async function bootProxy(): Promise<() => Promise<void>> {
     ['--provider', 'anthropic', '--host', PROXY_HOST, '--port', String(PROXY_PORT), '--upstream', UPSTREAM],
     process.env
   );
-  // silence per-request JSON logs during the eval
+  // silence per-request JSON logs during the eval — opt-in debug via env
+  // var when investigating routing/crop decisions.
   opts.logLevel = (process.env.STATELENS_EVAL_PROXY_LOG_LEVEL as typeof opts.logLevel) ?? 'silent';
   const server = createAnthropicProxyServer(opts);
   await new Promise<void>((resolve) => server.listen(PROXY_PORT, PROXY_HOST, resolve));

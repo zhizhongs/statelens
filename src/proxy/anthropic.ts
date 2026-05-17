@@ -225,6 +225,21 @@ export async function processAnthropicMessagesRequest(args: {
       ? rewrite.route.evidence.length
       : 0;
 
+  // Diagnostic counters from the underlying observation: how many regions the
+  // pipeline produced and how many had usable crops attached. Helpful when
+  // route=use_full_vision so we can tell the difference between "cropper
+  // dropped everything" vs "labels weren't anchored".
+  const observation = rewrite.observation;
+  const regionsCount = observation?.changed_regions?.length ?? 0;
+  const evidenceCount =
+    observation && 'visual_evidence' in observation
+      ? observation.visual_evidence.length
+      : 0;
+  const aggregateConfidence =
+    observation && 'visual_evidence' in observation
+      ? observation.confidence
+      : undefined;
+
   proxyLog(options, 'info', {
     request_id: context.requestId,
     provider: 'anthropic',
@@ -235,6 +250,9 @@ export async function processAnthropicMessagesRequest(args: {
     vlm_called: rewrite.observation?.vlm_called,
     rewritten: rewrite.action === 'forward_rewritten',
     crop_count: cropCount,
+    regions_count: regionsCount,
+    evidence_count: evidenceCount,
+    aggregate_confidence: aggregateConfidence,
     region_evidence_enabled: useEvidence,
     latency_ms: Date.now() - started,
   });

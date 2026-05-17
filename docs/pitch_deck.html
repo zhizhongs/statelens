@@ -737,80 +737,82 @@
       </div>
       <div class="hero">
         <div class="logo-mark"><span class="dot"></span> STATELENS</div>
-        <h1 class="huge">The observation compression layer for UI agents.</h1>
-        <p class="tagline">Computer-use agents waste money re-reading screenshots where nothing meaningful changed. <strong>StateLens turns each frame into the cheapest sufficient evidence before the expensive model sees it.</strong></p>
+        <h1 class="huge">The moment your context runs out.</h1>
+        <p class="tagline">A developer is deep in a Claude Code session, pasting screenshot after screenshot of the same bug. By turn 30 the context window is full, the agent has forgotten the original error, and the conversation has to restart. <strong>StateLens compresses every screenshot before it lands in context — same evidence, a fraction of the tokens.</strong></p>
         <div class="proof">
           <div style="margin-bottom: 8px;"><strong>Proof — real Anthropic API tokens, all reproducible.</strong></div>
           <div class="proof-row"><span class="proof-tag">harness</span> login <span class="proof-num">−90.1% cost · 100% lenient · 0 misses</span></div>
           <div class="proof-row"><span class="proof-tag">harness</span> checkout <span class="proof-num">−81.2% cost · 77.8% lenient</span></div>
           <div class="proof-row"><span class="proof-tag proxy">proxy E2E</span> prev+curr per turn <span class="proof-num">−31.3% cost · 100% lenient · 0 misses</span></div>
-          <div class="proof-row"><span class="proof-tag proxy">proxy E2E</span> single-image per turn <span class="proof-num">−59.4% cost</span> <span class="proof-note">· the shape real computer-use loops use</span></div>
+          <div class="proof-row"><span class="proof-tag proxy">proxy E2E</span> single-image per turn <span class="proof-num">−59.4% cost</span> <span class="proof-note">· the shape every long agent loop hits</span></div>
         </div>
         <div class="pipeline-mini">
-          computer-use loop <span>→</span> StateLens proxy <span>→</span> stub · event · crop · full vision <span>→</span> agent reasoning
+          pasted screenshot <span>→</span> StateLens <span>→</span> stub · event · crop · full vision <span>→</span> what actually enters your context
         </div>
       </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        Not another browser agent — the observation router every computer-use agent should pass through before spending vision tokens. Text cards are one route, not the whole architecture: the product is cheapest sufficient evidence.
+        Open with the relatable moment: developer + Claude Code + screenshot-spam + context exhaustion. That is the "when" — the concrete moment our product exists for. Everything else in the deck — proxy, MCP, ladder, healer — is what falls out of solving that one moment.
       </div>
     </section>
 
-    <!-- ============== SLIDE 2: PROBLEM + INSIGHT ============== -->
+    <!-- ============== SLIDE 2: THE WHEN MOMENT ============== -->
     <section class="slide" data-slide="2">
       <div class="slide-chrome">
-        <span class="brand">PROBLEM &amp; INSIGHT</span>
+        <span class="brand">THE WHEN MOMENT</span>
         <span class="num">02 / 08</span>
       </div>
-      <h2 class="subtitle">The Problem</h2>
-      <h1>Agents pay to rediscover the same screen — then there's a cheaper question to ask first.</h1>
+      <h2 class="subtitle">The "When" Moment</h2>
+      <h1>Turn 30 in a Claude Code conversation. The bug isn't fixed. You're out of context.</h1>
 
       <div class="mt">
         <div class="arrow-flow">
-          <span class="step">screenshot</span><span class="arrow">→</span>
-          <span class="step cyan">vision model reasons</span><span class="arrow">→</span>
-          <span class="step">action</span><span class="arrow">→</span>
-          <span class="step">screenshot</span><span class="arrow">→</span>
-          <span class="step cyan">vision model reasons <em>again</em></span>
+          <span class="step">paste screenshot</span><span class="arrow">→</span>
+          <span class="step cyan">agent reads it</span><span class="arrow">→</span>
+          <span class="step">try a fix</span><span class="arrow">→</span>
+          <span class="step">paste another screenshot</span><span class="arrow">→</span>
+          <span class="step red">context window full · <em>/clear</em></span>
         </div>
       </div>
 
       <div class="grid-2 mt">
         <div class="card red">
-          <h3 class="accent-red">Why the loop wastes money</h3>
+          <h3 class="accent-red">Why the conversation dies</h3>
           <ul>
-            <li>consecutive screenshots are often <strong>identical or near-identical</strong></li>
-            <li>most changes happen in <strong>one region</strong>, not the whole screen</li>
-            <li>text changes (errors, validation) can be <strong>extracted locally</strong></li>
-            <li>raw screenshots leave <strong>no persistent observability</strong></li>
+            <li>each pasted screenshot is <strong>thousands of tokens</strong> the agent never gets back</li>
+            <li>screenshot #6 is usually <strong>95% identical</strong> to screenshot #5 — same page, one new error line</li>
+            <li>the signal the agent actually needed was <strong>one string of text in one region</strong></li>
+            <li>by the time you're out of room, the agent has <strong>forgotten the original symptom</strong></li>
+            <li>same shape, scaled up, kills every long computer-use / browser-agent loop</li>
           </ul>
         </div>
         <div class="card cyan">
           <h3>Ask a cheaper question first</h3>
-          <pre class="compact"><code>Did anything meaningful change?
-  If yes, where?
+          <pre class="compact"><code>Did anything meaningful change since last frame?
+  If no, send a one-line stub.
+  If yes, where on the screen?
     If text changed, what text?
       Only if local signals are insufficient
-      → call a small VLM.</code></pre>
-          <p class="small mt-sm">Moving observation <strong>from pixels to state transitions.</strong></p>
+      → call a small VLM on the crop.</code></pre>
+          <p class="small mt-sm">Move observation <strong>from pixels to state transitions</strong> — so context fills up with what the agent can <em>reason about</em>, not what the camera <em>saw</em>.</p>
         </div>
       </div>
 
       <div class="card mt">
-        <h3>After StateLens: an evidence ladder, not text-only compression</h3>
+        <h3>This is where StateLens comes from — an evidence ladder, not text-only compression</h3>
         <div class="evidence-ladder mt-sm">
           <div class="evidence-rung current">
             <div class="rung-top"><span>01</span><span class="rung-chip current">now</span></div>
             <div class="rung-title">No-change stub</div>
-            <div class="rung-copy">Zero vision when the frame is redundant.</div>
+            <div class="rung-copy">Zero vision when the frame is redundant — the duplicate-screenshot case.</div>
           </div>
           <div class="evidence-rung primary">
             <div class="rung-top"><span>02</span><span class="rung-chip current">now</span></div>
             <div class="rung-title">Event card</div>
-            <div class="rung-copy">Cheap semantic state for forms, errors, nav.</div>
+            <div class="rung-copy">Cheap semantic state for forms, errors, nav — the "one string of text" case.</div>
           </div>
-          <div class="evidence-rung planned">
-            <div class="rung-top"><span>03</span><span class="rung-chip planned">next</span></div>
+          <div class="evidence-rung current">
+            <div class="rung-top"><span>03</span><span class="rung-chip current">now</span></div>
             <div class="rung-title">Changed crop</div>
             <div class="rung-copy">Pixels only where visual grounding matters.</div>
           </div>
@@ -828,7 +830,7 @@
       </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        Two-beat pivot: waste is using full vision per frame. The better framing is an evidence ladder: text is cheap and often enough, crops preserve local pixels, full vision remains the safe route.
+        Anchor everything in the concrete moment from slide 1: long Claude Code conversation, screenshot after screenshot, context burns out. The cheaper question — "did anything meaningful change, and was it just text?" — is the whole product thesis in one sentence. The ladder is the answer turned into engineering.
       </div>
     </section>
 
@@ -839,7 +841,7 @@
         <span class="num">03 / 08</span>
       </div>
       <h2 class="subtitle">What We Built</h2>
-      <h1>Six-stage evidence router · drop-in Anthropic-compatible proxy.</h1>
+      <h1>Six-stage evidence router · drop-in Anthropic-compatible proxy — so the cheapest sufficient evidence is what enters your context, not the raw screenshot.</h1>
 
       <div class="pipeline mt-sm">
         <div class="pipe-stage local"><span class="n">STAGE 1</span><strong>Visual gate</strong><br/>hash + pixelmatch</div>
@@ -868,17 +870,17 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
 
       <table class="compact mt-sm">
         <thead>
-          <tr><th style="width: 220px;">Surface</th><th>Use when</th><th style="width: 220px;">Where it pays off most</th></tr>
+          <tr><th style="width: 220px;">Surface</th><th>The "when" it solves</th><th style="width: 220px;">Where it pays off most</th></tr>
         </thead>
         <tbody>
           <tr>
             <td><strong>HTTP proxy</strong> <span class="badge green">PRIMARY</span></td>
-            <td>Any agent that talks to the Anthropic API</td>
+            <td>Any agent loop pasting screenshots into Anthropic — long sessions, computer-use, browser tests</td>
             <td><span style="color: var(--metric); font-weight:600;">computer-use loops, browser automation, test agents</span></td>
           </tr>
           <tr>
             <td><strong>MCP server</strong> (4 tools)</td>
-            <td>Cursor · Claude Code · Claude Desktop</td>
+            <td>A developer reading screenshots into Claude Code by hand</td>
             <td>local observability inside the IDE</td>
           </tr>
           <tr>
@@ -890,7 +892,7 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
       </table>
       <div class="note">
         <div class="label">Speaker note</div>
-        Pipeline is model-external. Proxy is primary delivery — reproduces harness savings directly. The product direction is not text-only; it is evidence routing with fail-open full vision.
+        Pipeline is model-external. Proxy is primary delivery — same engine, three surfaces, each one mapped to a different "when" the screenshot-overload moment shows up: agentic loop, IDE conversation, custom Playwright runner.
       </div>
     </section>
 
@@ -901,7 +903,8 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
         <span class="num">04 / 08</span>
       </div>
       <h2 class="subtitle">Real Numbers</h2>
-      <h1>81–90% cost reduction. 78–100% accuracy. Reproduced end-to-end through the proxy.</h1>
+      <h1>81–90% fewer tokens into context. 78–100% accuracy. Reproduced end-to-end through the proxy.</h1>
+      <p class="small">Cost is the headline; the underlying win is <strong>tokens that never enter the conversation</strong> — exactly the budget that decides how long a Claude Code or computer-use session can run before it hits the wall.</p>
 
       <div class="grid-4 mt-sm">
         <div class="card cyan stat">
@@ -982,10 +985,10 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
         <span class="num">05 / 08</span>
       </div>
       <h2 class="subtitle">The Delivery-Surface Lesson</h2>
-      <h1>We shipped MCP, dogfooded it, found it was <span class="accent-red">more expensive</span> — then built the proxy.</h1>
+      <h1>The MCP form helped the <em>developer</em> moment but hurt context. We measured it, then built the proxy.</h1>
 
       <p class="small mt-sm">
-        The pipeline savings are real, but the <strong>delivery surface matters as much as the pipeline.</strong> We measured our own MCP server end-to-end inside Claude Code.
+        MCP was the obvious first surface for the Claude-Code-conversation "when" — but tool definitions live <em>inside</em> the very context window we're trying to protect. The pipeline savings are real; the <strong>delivery surface has to live on the data path, not in the conversation.</strong>
       </p>
 
       <div class="grid-2 mt">
@@ -1025,11 +1028,11 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
             <tr><td>Proxy · single-image per turn <span style="color: var(--metric);">(computer-use loop shape)</span></td><td class="num"><span class="pos">−59.4% cheaper</span></td></tr>
           </tbody>
         </table>
-        <p class="tiny mt-sm">The proxy advantage <strong>grows</strong> with loop length — the longer the agentic computer-use session, the more the fixed-overhead-free design pays off.</p>
+        <p class="tiny mt-sm">The proxy advantage <strong>grows</strong> with loop length — the longer the conversation or agentic session, the more the fixed-overhead-free design pays off. The "when context runs out" moment gets pushed further and further away.</p>
       </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        The honest story: shipped, measured, found the bad result, diagnosed (surface, not pipeline), shipped the right surface. The reversal — same flow, +27% → −59% — is the most credible thing in the deck.
+        The honest story: shipped, measured, found the bad result, diagnosed (surface, not pipeline), shipped the right surface. The reversal — same flow, +27% → −59% — is the most credible thing in the deck, and it directly answers "which form actually preserves context".
       </div>
     </section>
 
@@ -1040,11 +1043,11 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
         <span class="num">06 / 08</span>
       </div>
       <h2 class="subtitle">Why It Matters Beyond Cost</h2>
-      <h1>StateLens makes agent runs debuggable.</h1>
+      <h1>The same compression answers "<em>when</em> did it go wrong?"</h1>
 
       <div class="split mt">
         <div class="stretch">
-          <p class="small">Raw screenshots disappear into model context. <strong>StateLens leaves a timeline.</strong></p>
+          <p class="small">Raw screenshots disappear into model context. <strong>StateLens leaves a timeline of state transitions</strong> — so you can scrub back and see <em>when</em> the agent took a wrong turn instead of re-reading every frame.</p>
 
           <div class="rail">
             <div class="rail-events">
@@ -1104,8 +1107,8 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
         <span class="num">07 / 08</span>
       </div>
       <h2 class="subtitle">Where StateLens Is Indispensable</h2>
-      <h1>Agentic loops — computer-use, browser automation, self-healing test agents.</h1>
-      <p class="small">Useful in Claude Code today as MCP observability. <strong>Indispensable in the long-running, screenshot-heavy agentic loop</strong> — exactly the shape of computer-use and automated UI testing, where the proxy's savings compound every turn.</p>
+      <h1>The same "when" — at agent scale.</h1>
+      <p class="small">A developer hits the context wall after maybe 30 screenshots. <strong>A computer-use or browser-test agent hits it after 30 seconds.</strong> Same shape, three orders of magnitude faster — and every frame pasted into the loop pushes the agent closer to forgetting the goal. The proxy's savings compound every turn the loop survives.</p>
 
       <div class="grid-2 mt">
         <div class="card cyan">
@@ -1115,7 +1118,8 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
   → calls Anthropic <span style="color: var(--metric);">via StateLens proxy</span>
   → proxy: <span style="color: var(--metric);">gate · OCR · score · evidence route</span>
   → upstream sees cheapest sufficient evidence
-  → agent reasons cheaply, loops 100× more</code></pre>
+  → agent reasons cheaply, loops 100× more
+  → "when context runs out" pushed past the horizon</code></pre>
           <ul class="mt-sm">
             <li><strong>No code change</strong> — drop a baseURL into whatever computer-use SDK you're using</li>
             <li><strong>Savings compound with loop length</strong> — per-frame compression dominates as sessions grow</li>
@@ -1154,7 +1158,7 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
         <span class="num">08 / 08</span>
       </div>
       <h2 class="subtitle">Why StateLens Wins</h2>
-      <h1>Model-external. Inspectable. Drop-in.</h1>
+      <h1>The layer that stands between every screenshot and your context window.</h1>
 
       <div class="split mt">
         <div class="stretch">
@@ -1206,14 +1210,14 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
           </div>
 
           <div class="card cyan mt" style="text-align:center;">
-            <p style="font-size:17px; font-weight:600;">The universal observation layer for UI agents.</p>
+            <p style="font-size:17px; font-weight:600;">Never run out of context on a screenshot you didn't need.</p>
             <p class="small mt-sm">Adopting it is one environment variable.</p>
           </div>
         </div>
       </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        Don't make every model relearn the same unchanged screen. Put an observation layer in front of them — on the data path, not in the tool surface — so it costs nothing to adopt and nothing per turn.
+        Close by returning to the slide-1 moment: the developer pasting screenshots into Claude Code. Don't make every model relearn the same unchanged screen — put an observation layer in front of them, on the data path, not in the tool surface. Cost: one environment variable. Reward: the conversation outlives the bug.
       </div>
     </section>
 

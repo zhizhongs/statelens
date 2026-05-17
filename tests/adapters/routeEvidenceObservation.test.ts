@@ -128,8 +128,26 @@ describe('routeEvidenceObservation', () => {
     expect(route.route).toBe('use_full_vision');
   });
 
-  it('routes low-confidence keyframes to use_full_vision', () => {
+  it('still rides evidence routes on low-confidence keyframes when reliable crops exist', () => {
+    // Aggregate confidence goes `low` whenever ANY single region is low (e.g.
+    // regionCount >= 6 in the labeler), but the cropper only ships the top
+    // maxCrops anyway. As long as there is at least one OCR/VLM-anchored region
+    // with usable crop bytes we should attach it instead of forwarding the raw
+    // image — that's the whole point of the cropping path.
     const route = routeEvidenceObservation(obs({ confidence: 'low' }));
+    expect(route.route).toBe('use_region_evidence');
+  });
+
+  it('falls back to use_full_vision on low confidence when no anchored evidence exists', () => {
+    const route = routeEvidenceObservation(
+      obs({
+        confidence: 'low',
+        changed_regions: [
+          region('crop_1', 'top_banner', [0, 0, 200, 60], { source: 'heuristic' }),
+        ],
+        visual_evidence: [evidence('crop_1')],
+      })
+    );
     expect(route.route).toBe('use_full_vision');
   });
 

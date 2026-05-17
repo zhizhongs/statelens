@@ -411,9 +411,14 @@ export async function observeWithEvidence(
             pngCompressionLevel: options.cropPngCompressionLevel,
           }
         );
-      } catch {
+      } catch (err) {
         // Crop failure is non-fatal — the observation is still useful without
-        // crops; the router will fall through to use_text_observation.
+        // crops; the router will fall through to use_text_observation. We log
+        // the failure to stderr so silently empty `visual_evidence` arrays
+        // don't look like a no-op when cropping is meant to be active.
+        console.error(
+          `[statelens] buildVisualEvidence failed: ${shortError(err)}`
+        );
         visualEvidence = [];
       }
     }
