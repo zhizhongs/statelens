@@ -143,7 +143,7 @@
     color: var(--text);
   }
   li { font-size: 13px; line-height: 1.5; margin-bottom: 3px; }
-  li strong { color: var(--cyan); }
+  li strong { color: var(--text); }
 
   /* Code */
   pre, code {
@@ -588,10 +588,10 @@
 
   /* Appendix lists */
   .feat-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-  .feat-cols h3 { color: var(--cyan); margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .feat-cols h3 { color: var(--metric); margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
   .feat-cols.three { grid-template-columns: 1fr 1fr 1fr; }
-  .feat-cols.three .col h3.amber { color: var(--amber); }
-  .feat-cols.three .col h3.red { color: var(--red); }
+  .feat-cols.three .col h3.amber { color: var(--primary); }
+  .feat-cols.three .col h3.red { color: var(--warn); }
   .feat-cols ul { list-style: none; padding: 0; }
   .feat-cols li {
     font-size: 10.5px;
@@ -605,12 +605,12 @@
     content: '›';
     position: absolute;
     left: 0;
-    color: var(--cyan);
+    color: var(--metric);
     font-size: 12px;
     line-height: 1.2;
   }
-  .feat-cols.three .col:nth-child(2) li::before { color: var(--amber); }
-  .feat-cols.three .col:nth-child(3) li::before { color: var(--red); }
+  .feat-cols.three .col:nth-child(2) li::before { color: var(--primary); }
+  .feat-cols.three .col:nth-child(3) li::before { color: var(--warn); }
 
   /* Print */
   @media print {
@@ -644,35 +644,35 @@
     <section class="slide" data-slide="1">
       <div class="slide-chrome">
         <span class="brand">STATELENS</span>
-        <span class="num">01 / 13</span>
+        <span class="num">01 / 08</span>
       </div>
       <div class="hero">
         <div class="logo-mark"><span class="dot"></span> STATELENS</div>
         <h1 class="huge">The observation compression layer for UI agents.</h1>
         <p class="tagline">Computer-use agents waste money re-reading screenshots where nothing meaningful changed. <strong>StateLens turns screenshot streams into semantic state changes before the expensive model sees them.</strong></p>
         <div class="proof">
-          <strong>Proof point —</strong> 81–90% cost reduction across two adversarial screenshot scenarios with 78–100% event-capture accuracy, measured with real Anthropic API usage. Now shipping as a <strong>drop-in Anthropic-compatible proxy</strong> — change one <code>baseURL</code> and your agent gets the savings with zero code changes.
+          <strong>Proof point —</strong> 81–90% cost reduction with 78–100% event-capture accuracy, measured with real Anthropic API usage. Useful inside Claude Code or any local service — and <strong>massively more useful in long-running agentic loops</strong>: computer-use, browser automation, Playwright-driven test agents. Drops in via one <code>baseURL</code> change.
         </div>
         <div class="pipeline-mini">
-          screenshot stream <span>→</span> StateLens proxy <span>→</span> compact events <span>→</span> agent reasoning
+          computer-use loop <span>→</span> StateLens proxy <span>→</span> compact events <span>→</span> agent reasoning
         </div>
       </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        Not another browser agent — the layer every browser or computer-use agent should call before spending vision tokens. The proxy form means no SDK swap, no MCP plumbing — just a different baseURL.
+        Not another browser agent — the layer every browser or computer-use agent should call before spending vision tokens. Works inside Claude Code and local services today; the killer wedge is long-running agentic loops (computer-use, automated browser testing) where savings amortize and dominate.
       </div>
     </section>
 
-    <!-- ============== SLIDE 2: PROBLEM ============== -->
+    <!-- ============== SLIDE 2: PROBLEM + INSIGHT ============== -->
     <section class="slide" data-slide="2">
       <div class="slide-chrome">
-        <span class="brand">PROBLEM</span>
-        <span class="num">02 / 13</span>
+        <span class="brand">PROBLEM &amp; INSIGHT</span>
+        <span class="num">02 / 08</span>
       </div>
       <h2 class="subtitle">The Problem</h2>
-      <h1>Agents are paying to rediscover the same screen.</h1>
+      <h1>Agents pay to rediscover the same screen — then there's a cheaper question to ask first.</h1>
 
-      <div class="mt-lg">
+      <div class="mt">
         <div class="arrow-flow">
           <span class="step">screenshot</span><span class="arrow">→</span>
           <span class="step cyan">vision model reasons</span><span class="arrow">→</span>
@@ -682,65 +682,24 @@
         </div>
       </div>
 
-      <div class="grid-2 mt-lg">
+      <div class="grid-2 mt">
         <div class="card red">
-          <h3 class="accent-red">That loop is expensive because…</h3>
+          <h3 class="accent-red">Why the loop wastes money</h3>
           <ul>
-            <li>many consecutive screenshots are <strong>identical or nearly identical</strong></li>
-            <li>small UI changes happen in <strong>one region</strong>, not the whole screen</li>
+            <li>consecutive screenshots are often <strong>identical or near-identical</strong></li>
+            <li>most changes happen in <strong>one region</strong>, not the whole screen</li>
             <li>text changes (errors, validation) can be <strong>extracted locally</strong></li>
-            <li>raw screenshot reasoning leaves <strong>little persistent observability</strong></li>
+            <li>raw screenshots leave <strong>no persistent observability</strong></li>
           </ul>
         </div>
-        <div class="card">
-          <h3>The pain</h3>
-          <p>Teams pay model prices for <em>repeated visual context</em>, then still have to debug what happened manually.</p>
-          <p class="small mt-sm">The waste isn't that vision is useless. The waste is using <strong>full vision as the default observation mechanism for every frame.</strong></p>
-        </div>
-      </div>
-
-      <div class="slide-footer">
-        <span>// every dimmed frame is a paid re-read</span>
-        <span>STATELENS_DECK_v2</span>
-      </div>
-      <div class="note">
-        <div class="label">Speaker note</div>
-        The waste is not vision itself — it's using full vision as the default observation mechanism for every frame.
-      </div>
-    </section>
-
-    <!-- ============== SLIDE 3: INSIGHT ============== -->
-    <section class="slide" data-slide="3">
-      <div class="slide-chrome">
-        <span class="brand">INSIGHT</span>
-        <span class="num">03 / 13</span>
-      </div>
-      <h2 class="subtitle">The Insight</h2>
-      <h1>Most UI state changes can be compressed before vision.</h1>
-
-      <div class="grid-2 mt-lg stretch">
         <div class="card cyan">
           <h3>Ask a cheaper question first</h3>
           <pre class="compact"><code>Did anything meaningful change?
   If yes, where?
     If text changed, what text?
-      Only if local signals are
-      insufficient → call a small VLM.</code></pre>
-          <p class="small mt-sm">We are moving observation <strong>from pixels to state transitions.</strong></p>
-        </div>
-        <div class="card">
-          <h3>The agent receives a structured observation</h3>
-          <pre class="compact"><code>{
-  "changed": true,
-  "keyframe": true,
-  "event_type": "error_appeared",
-  "event_summary":
-    "Text appeared: \"Invalid password\"",
-  "text_diff": {
-    "added": ["Invalid password"], "removed": []
-  },
-  "vlm_called": false
-}</code></pre>
+      Only if local signals are insufficient
+      → call a small VLM.</code></pre>
+          <p class="small mt-sm">Moving observation <strong>from pixels to state transitions.</strong></p>
         </div>
       </div>
 
@@ -750,20 +709,20 @@
       </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        Moving observation from pixels to state transitions.
+        Two-beat pivot: waste is using full vision per frame; the cheaper question first restructures observation from pixels to state transitions.
       </div>
     </section>
 
-    <!-- ============== SLIDE 4: PIPELINE ============== -->
-    <section class="slide" data-slide="4">
+    <!-- ============== SLIDE 3: WHAT WE BUILT ============== -->
+    <section class="slide" data-slide="3">
       <div class="slide-chrome">
-        <span class="brand">ARCHITECTURE</span>
-        <span class="num">04 / 13</span>
+        <span class="brand">WHAT WE BUILT</span>
+        <span class="num">03 / 08</span>
       </div>
       <h2 class="subtitle">What We Built</h2>
-      <h1>A six-stage screenshot compression pipeline.</h1>
+      <h1>Six-stage compression pipeline · drop-in Anthropic-compatible proxy.</h1>
 
-      <div class="pipeline mt">
+      <div class="pipeline mt-sm">
         <div class="pipe-stage local"><span class="n">STAGE 1</span><strong>Visual gate</strong><br/>hash + pixelmatch</div>
         <span class="pipe-arrow">→</span>
         <div class="pipe-stage local"><span class="n">STAGE 2</span><strong>Region localize</strong><br/>bounding boxes</div>
@@ -777,212 +736,189 @@
         <div class="pipe-stage local"><span class="n">STAGE 6</span><strong>Timeline</strong><br/>semantic events</div>
       </div>
       <p class="tiny" style="text-align:center;">
-        <span class="badge green">LOCAL</span> no model call &nbsp;·&nbsp; <span class="badge amber">VLM</span> optional small-model call
+        <span class="badge cyan">LOCAL</span> no model call &nbsp;·&nbsp; <span class="badge amber">VLM</span> optional small-model call
       </p>
 
-      <div class="grid-2 mt">
-        <div class="card">
-          <h3 class="accent-green">Shipped — pipeline core</h3>
-          <ul>
-            <li>hash + pixelmatch visual gate for redundant frames</li>
-            <li>changed-region bounding boxes with semantic labels</li>
-            <li>OCR only on changed crops, not whole screenshots</li>
-            <li>rule-based importance scoring for keyframes</li>
-            <li>selective VLM explanation for visual-only states</li>
-            <li>cumulative Haiku usage tracked honestly</li>
-          </ul>
-        </div>
-        <div class="card">
-          <h3 class="accent-green">Shipped — production hardening</h3>
-          <ul>
-            <li>per-session semantic timeline</li>
-            <li><strong>action-failure detection</strong> — expected-change actions that don't move the UI emit <code>action_failed</code></li>
-            <li><strong>multi-language OCR</strong> via <code>STATELENS_OCR_LANGS</code></li>
-            <li><strong>Anthropic-compatible HTTP proxy</strong> — intercepts <code>POST /v1/messages</code>, runs the pipeline, rewrites the request</li>
-          </ul>
-        </div>
-      </div>
-      <div class="note">
-        <div class="label">Speaker note</div>
-        Pipeline is model-external. It works as a library, MCP, in custom agent loops, and as a transparent proxy that any Anthropic SDK can point at.
-      </div>
-    </section>
-
-    <!-- ============== SLIDE 5: PRODUCT SURFACE ============== -->
-    <section class="slide" data-slide="5">
-      <div class="slide-chrome">
-        <span class="brand">PRODUCT SURFACE</span>
-        <span class="num">05 / 13</span>
-      </div>
-      <h2 class="subtitle">Product Surface</h2>
-      <h1>One pipeline. Four delivery surfaces. Led by a drop-in proxy.</h1>
-
       <div class="card cyan mt">
-        <h3 style="color:var(--cyan);">Primary surface — Anthropic-compatible HTTP proxy</h3>
-        <pre class="compact mt-sm"><code><span style="color:var(--muted);"># Boot it</span>
+        <h3 style="color: var(--primary);">Drop in via one baseURL — primary delivery surface</h3>
+        <pre class="compact mt-sm"><code><span style="color: var(--muted);"># Boot it · point any Anthropic SDK at it</span>
 statelens proxy --port 18443
-
-<span style="color:var(--muted);"># Point any Anthropic SDK at it</span>
 export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
-<span style="color:var(--muted);"># …that's it. No code changes. No tool calls. No prompts.</span></code></pre>
-        <p class="small mt-sm">
-          Proxy detects image blocks in <code>POST /v1/messages</code>, runs the pipeline on the latest screenshot, rewrites it to a compact text observation (or "no meaningful change" stub when the gate skips), and forwards upstream. Recursion guard via <code>STATELENS_INTERNAL_ANTHROPIC_BASE_URL</code> keeps internal Haiku calls from looping back.
-        </p>
+<span style="color: var(--muted);"># …no code changes. No tool calls. No prompts.</span></code></pre>
       </div>
 
-      <table class="compact mt">
+      <table class="compact mt-sm">
         <thead>
-          <tr><th style="width: 250px;">Surface</th><th>Use when</th></tr>
+          <tr><th style="width: 220px;">Surface</th><th>Use when</th><th style="width: 220px;">Where it pays off most</th></tr>
         </thead>
         <tbody>
-          <tr><td><strong>HTTP proxy</strong> &nbsp;<span class="badge green">PRIMARY</span></td><td>Any agent that talks to the Anthropic API — zero code change</td></tr>
-          <tr><td><strong>MCP server</strong> (4 tools)</td><td>Editor clients where the proxy can't reach: Cursor, Claude Code, Claude Desktop</td></tr>
-          <tr><td><code>routeObservation()</code> library</td><td>Custom agents that want code-enforced routing</td></tr>
-          <tr><td><code>captureAndRoute()</code> adapter</td><td>Playwright loops that capture screenshots in-process</td></tr>
+          <tr>
+            <td><strong>HTTP proxy</strong> <span class="badge green">PRIMARY</span></td>
+            <td>Any agent that talks to the Anthropic API</td>
+            <td><span style="color: var(--metric); font-weight:600;">computer-use loops, browser automation, test agents</span></td>
+          </tr>
+          <tr>
+            <td><strong>MCP server</strong> (4 tools)</td>
+            <td>Cursor · Claude Code · Claude Desktop</td>
+            <td>local observability inside the IDE</td>
+          </tr>
+          <tr>
+            <td><code>routeObservation()</code> · <code>captureAndRoute()</code></td>
+            <td>Custom agents, Playwright in-process loops</td>
+            <td>test-agent + healer pipelines</td>
+          </tr>
         </tbody>
       </table>
       <div class="note">
         <div class="label">Speaker note</div>
-        Lead with the proxy. Reproduces harness savings directly. MCP is the editor-compatibility adapter for environments the proxy can't reach.
+        Pipeline is model-external. Proxy is primary delivery — reproduces harness savings directly. Leverage scales with loop length.
       </div>
     </section>
 
-    <!-- ============== SLIDE 6: REAL NUMBERS ============== -->
-    <section class="slide" data-slide="6">
+    <!-- ============== SLIDE 4: REAL NUMBERS ============== -->
+    <section class="slide" data-slide="4">
       <div class="slide-chrome">
         <span class="brand">REAL NUMBERS</span>
-        <span class="num">06 / 13</span>
+        <span class="num">04 / 08</span>
       </div>
       <h2 class="subtitle">Real Numbers</h2>
-      <h1>81–90% cost reduction. 78–100% accuracy. Two adversarial scenarios.</h1>
-      <p class="small">Real Anthropic API token counts. Sonnet 4.6 outside, Haiku 4.5 inside. Baseline = raw screenshots through Sonnet with prev+curr prompt per frame.</p>
+      <h1>81–90% cost reduction. 78–100% accuracy. Reproduced end-to-end through the proxy.</h1>
 
-      <div class="grid-4 mt">
+      <div class="grid-4 mt-sm">
         <div class="card cyan stat">
-          <div class="num huge" style="color:var(--cyan);">90.1%</div>
+          <div class="num huge">90.1%</div>
           <div class="lbl">Login cost reduction</div>
         </div>
         <div class="card cyan stat">
-          <div class="num huge" style="color:var(--cyan);">81.2%</div>
+          <div class="num huge">81.2%</div>
           <div class="lbl">Checkout cost reduction</div>
         </div>
         <div class="card green stat">
-          <div class="num huge accent-green">100%</div>
+          <div class="num huge">100%</div>
           <div class="lbl">Login lenient accuracy</div>
         </div>
         <div class="card green stat">
-          <div class="num huge accent-green">77.8%</div>
+          <div class="num huge">77.8%</div>
           <div class="lbl">Checkout lenient accuracy</div>
         </div>
       </div>
 
-      <table class="compact mt">
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th class="num">Login (12 frames)</th>
-            <th class="num">Checkout (10 frames)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>Baseline / StateLens input tokens</td><td class="num">36,255 → 6,562</td><td class="num">29,951 → 9,025</td></tr>
-          <tr><td><strong>Token reduction</strong></td><td class="num"><span class="pos">81.9%</span></td><td class="num"><span class="pos">69.9%</span></td></tr>
-          <tr><td>Baseline / StateLens cost</td><td class="num">$0.1162 → $0.0115</td><td class="num">$0.0988 → $0.0186</td></tr>
-          <tr><td>Sonnet image tokens dropped</td><td class="num"><span class="pos">100% (12→0)</span></td><td class="num"><span class="pos">100% (10→0)</span></td></tr>
-          <tr><td>Visual-gate filters · Sonnet text · Haiku VLM</td><td class="num">5 · 2 · 5</td><td class="num">0 · 4 · 6</td></tr>
-          <tr><td><strong>Accuracy lenient / strict</strong></td><td class="num"><span class="pos">100.0%</span> / 81.8%</td><td class="num"><span class="pos">77.8%</span> / 33.3%</td></tr>
-          <tr><td>Misses (events lost)</td><td class="num"><span class="pos">0</span></td><td class="num">2</td></tr>
-        </tbody>
-      </table>
+      <div class="grid-2 mt">
+        <div class="card">
+          <h3>Harness · two adversarial scenarios</h3>
+          <table class="compact">
+            <thead>
+              <tr><th>Metric</th><th class="num">Login (12)</th><th class="num">Checkout (10)</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Baseline → StateLens tokens</td><td class="num">36,255→6,562</td><td class="num">29,951→9,025</td></tr>
+              <tr><td>Token reduction</td><td class="num"><span class="pos">81.9%</span></td><td class="num"><span class="pos">69.9%</span></td></tr>
+              <tr><td>Cost</td><td class="num">$0.116→$0.012</td><td class="num">$0.099→$0.019</td></tr>
+              <tr><td>Misses (events lost)</td><td class="num"><span class="pos">0</span></td><td class="num">2</td></tr>
+            </tbody>
+          </table>
+          <p class="tiny mt-sm">Login has natural redundancy (gate filters 5/12). Checkout has zero redundancy and stylized OCR-breaking form fields — savings shift to cheap Haiku routes. <strong>Same pipeline, both deliver 80%+ token / 81%+ cost.</strong></p>
+        </div>
 
-      <p class="tiny mt-sm">
-        <strong>Why two scenarios — adversarial.</strong> Login has natural redundancy (gate filters 5/12). Checkout has zero redundancy and stylized form fields that break OCR — savings come from routing form changes through cheap Haiku calls. Same pipeline, different mechanisms, both deliver 80%+ token and 81%+ cost reduction.
-      </p>
+        <div class="card cyan">
+          <h3 style="color: var(--primary);">End-to-end proxy validation · login flow</h3>
+          <p class="tiny mb-sm"><code>SDK → http://127.0.0.1:18443 → pipeline → Anthropic</code></p>
+          <div class="barchart">
+            <div class="barrow">
+              <span class="lbl">Direct · prev+curr</span>
+              <div class="bar"><div class="fill red" style="width: 100%;"></div></div>
+              <span class="val">$0.1160</span>
+            </div>
+            <div class="barrow">
+              <span class="lbl">Proxy · prev+curr</span>
+              <div class="bar"><div class="fill green" style="width: 68.7%;"></div></div>
+              <span class="val pos">$0.080 · −31%</span>
+            </div>
+            <div class="barrow">
+              <span class="lbl">Direct · single-image</span>
+              <div class="bar"><div class="fill red" style="width: 57.8%;"></div></div>
+              <span class="val">$0.0670</span>
+            </div>
+            <div class="barrow">
+              <span class="lbl">Proxy · single-image</span>
+              <div class="bar"><div class="fill green" style="width: 23.4%;"></div></div>
+              <span class="val pos">$0.027 · −59%</span>
+            </div>
+          </div>
+          <p class="tiny mt-sm">
+            prev+curr mode: <strong>100% lenient accuracy, 0 misses.</strong> Single-image mode (how real agent loops call the API) hits <strong>−59%</strong>. Files: <code>eval/results/proxy_ab_login_baseline.{json,accuracy.json}</code>.
+          </p>
+        </div>
+      </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        Lead with 90% on login, then 100% lenient accuracy before they ask "but does it work?" The two-scenario contrast heads off "is this just an easy flow?" — checkout was harder and still saved 81%.
+        Lead with 90% cost / 100% accuracy on login. Then "the proxy reproduces it end-to-end" — same flow, real network path, −31% prev+curr or −59% single-image. Haiku tokens counted against ourselves.
       </div>
     </section>
 
-    <!-- ============== SLIDE 7: PROXY VALIDATION ============== -->
-    <section class="slide" data-slide="7">
+    <!-- ============== SLIDE 5: DELIVERY-SURFACE LESSON ============== -->
+    <section class="slide" data-slide="5">
       <div class="slide-chrome">
-        <span class="brand">PROXY VALIDATION</span>
-        <span class="num">07 / 13</span>
+        <span class="brand">THE LESSON</span>
+        <span class="num">05 / 08</span>
       </div>
-      <h2 class="subtitle">Real Numbers — proxy form ships</h2>
-      <h1>The harness number reproduces end-to-end through a real request path.</h1>
+      <h2 class="subtitle">The Delivery-Surface Lesson</h2>
+      <h1>We shipped MCP, dogfooded it, found it was <span class="accent-red">more expensive</span> — then built the proxy.</h1>
 
       <p class="small mt-sm">
-        Numbers on the prior slide are a controlled SDK loop. To prove the pipeline survives a real network path, we re-ran login through the production proxy:
-        <code>SDK → http://127.0.0.1:18443 → pipeline → upstream Anthropic</code> · no harness shortcuts.
+        The pipeline savings are real, but the <strong>delivery surface matters as much as the pipeline.</strong> We measured our own MCP server end-to-end inside Claude Code.
       </p>
 
-      <table class="compact mt">
-        <thead>
-          <tr>
-            <th>Mode</th>
-            <th class="num">Run A (direct)</th>
-            <th class="num">Run B (proxy)</th>
-            <th class="num">Δ cost</th>
-            <th class="num">Accuracy (lenient)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>prev+curr per turn</strong> <span class="tiny" style="color:var(--dim);">· eval parity</span></td>
-            <td class="num">$0.1160</td>
-            <td class="num">$0.0796</td>
-            <td class="num"><span class="pos">−31.3%</span></td>
-            <td class="num"><span class="pos">100.0%</span> (0 misses)</td>
-          </tr>
-          <tr>
-            <td><strong>single-image per turn</strong> <span class="tiny" style="color:var(--dim);">· how real agent loops call</span></td>
-            <td class="num">$0.0670</td>
-            <td class="num">$0.0272</td>
-            <td class="num"><span class="pos">−59.4%</span></td>
-            <td class="num" style="color:var(--dim);">uncompared¹</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="grid-2 mt">
+        <div class="card red">
+          <h3 class="accent-red">Dogfood — MCP on a short Opus session</h3>
+          <p class="tiny mb-sm">Two Claude Code sessions, identical 12-frame login prompt, identical model. Run A used <code>Read</code>, Run B swapped to <code>statelens_observe</code>.</p>
+          <table class="compact">
+            <thead><tr><th>Metric</th><th class="num">Read</th><th class="num">MCP</th></tr></thead>
+            <tbody>
+              <tr><td>Total cost</td><td class="num">$0.66</td><td class="num"><span class="neg">$0.84</span></td></tr>
+              <tr><td>Output tokens</td><td class="num">2.1k</td><td class="num">3.5k</td></tr>
+              <tr><td>Cache write</td><td class="num">45.3k</td><td class="num">65.5k</td></tr>
+              <tr><td>Cache read</td><td class="num">657.8k</td><td class="num">685.1k</td></tr>
+            </tbody>
+          </table>
+          <p style="margin-top:6px; font-weight:700; color:var(--warn); font-size:14px; text-align:center; letter-spacing: 0.08em;">+27% MORE EXPENSIVE</p>
+        </div>
 
-      <div class="barchart mt">
-        <div class="barrow">
-          <span class="lbl">Direct (prev+curr)</span>
-          <div class="bar"><div class="fill red" style="width: 100%;"></div></div>
-          <span class="val">$0.1160</span>
-        </div>
-        <div class="barrow">
-          <span class="lbl">Proxy (prev+curr)</span>
-          <div class="bar"><div class="fill green" style="width: 68.7%;"></div></div>
-          <span class="val pos">$0.0796 · −31%</span>
-        </div>
-        <div class="barrow">
-          <span class="lbl">Direct (single-image)</span>
-          <div class="bar"><div class="fill red" style="width: 57.8%;"></div></div>
-          <span class="val">$0.0670</span>
-        </div>
-        <div class="barrow">
-          <span class="lbl">Proxy (single-image)</span>
-          <div class="bar"><div class="fill green" style="width: 23.4%;"></div></div>
-          <span class="val pos">$0.0272 · −59%</span>
+        <div class="card">
+          <h3>Diagnosis — three overheads, all MCP, none pipeline</h3>
+          <ul>
+            <li><strong>Tool-call arg verbosity</strong> — <code>screenshot_path, session_id</code> &gt; <code>file_path</code></li>
+            <li><strong>MCP tool defs cached every turn</strong> — 4 tools × ~400 tokens × 14 turns ≈ +22k cache reads</li>
+            <li><strong>JSON responses churn cache</strong> — each observation is textually unique, forces writes</li>
+          </ul>
+          <p class="tiny mt-sm">Modeled breakeven on Opus: ~30–50 frames. Below that, MCP overhead dominates per-frame savings.</p>
         </div>
       </div>
 
-      <p class="tiny mt-sm">
-        ¹ Single-image accuracy can't be fairly judged — Run A has no prior context, so the judge marks every "no change" frame as disagreement. Token/cost numbers are unaffected. Files: <code>eval/results/proxy_ab_login_baseline.{json,accuracy.json}</code>.
-      </p>
+      <div class="card cyan mt">
+        <h3 style="color: var(--primary);">The fix — proxy form, same pipeline, different surface</h3>
+        <table class="compact mt-sm">
+          <thead><tr><th>Surface · session shape</th><th class="num">12-frame login result</th></tr></thead>
+          <tbody>
+            <tr><td>MCP · short Opus editor session</td><td class="num"><span class="neg">+27% more expensive</span></td></tr>
+            <tr><td>Proxy · prev+curr per turn (eval parity)</td><td class="num"><span class="pos">−31.3%</span> · 100% lenient · 0 misses</td></tr>
+            <tr><td>Proxy · single-image per turn <span style="color: var(--metric);">(computer-use loop shape)</span></td><td class="num"><span class="pos">−59.4% cheaper</span></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny mt-sm">The proxy advantage <strong>grows</strong> with loop length — the longer the agentic computer-use session, the more the fixed-overhead-free design pays off.</p>
+      </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        Same pipeline, shipped as a transparent proxy, hits −31% on the same flow with zero misses — and −59% in the single-image-per-turn shape real agent loops use.
+        The honest story: shipped, measured, found the bad result, diagnosed (surface, not pipeline), shipped the right surface. The reversal — same flow, +27% → −59% — is the most credible thing in the deck.
       </div>
     </section>
 
-    <!-- ============== SLIDE 8: OBSERVABILITY ============== -->
-    <section class="slide" data-slide="8">
+    <!-- ============== SLIDE 6: OBSERVABILITY ============== -->
+    <section class="slide" data-slide="6">
       <div class="slide-chrome">
         <span class="brand">OBSERVABILITY</span>
-        <span class="num">08 / 13</span>
+        <span class="num">06 / 08</span>
       </div>
       <h2 class="subtitle">Why It Matters Beyond Cost</h2>
       <h1>StateLens makes agent runs debuggable.</h1>
@@ -1031,180 +967,72 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:18443
   "vlm_called": false
 }</code></pre>
             <p class="small mt-sm">
-              No OCR, no VLM, no false-positive <code>no_change</code> hiding a stuck page.
+              No OCR, no VLM, no false-positive <code>no_change</code> hiding a stuck page. The first healer signal a test agent needs.
             </p>
           </div>
         </div>
       </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        The same compression that saves money becomes observability for agent debugging.
+        Same compression that saves money becomes observability for agent debugging — and the first signal a self-healing test agent can act on.
       </div>
     </section>
 
-    <!-- ============== SLIDE 9: INTEGRATION TIERS ============== -->
-    <section class="slide" data-slide="9">
+    <!-- ============== SLIDE 7: KILLER WEDGE / AGENTIC LOOPS ============== -->
+    <section class="slide" data-slide="7">
       <div class="slide-chrome">
-        <span class="brand">INTEGRATION</span>
-        <span class="num">09 / 13</span>
+        <span class="brand">THE KILLER WEDGE</span>
+        <span class="num">07 / 08</span>
       </div>
-      <h2 class="subtitle">Real-Time Agent Integration</h2>
-      <h1>The proxy beats middleware beats a prompt.</h1>
-
-      <div class="mt">
-
-        <div class="tier">
-          <div class="tier-rank"><div class="n">1</div><div>weakest</div></div>
-          <div class="card" style="flex:1;">
-            <h3 class="accent-red">Policy prompt — voluntary</h3>
-            <p class="small">"Please call statelens_observe before reasoning." The agent has to choose. Easy to forget, easy to ignore.</p>
-          </div>
-        </div>
-
-        <div class="tier">
-          <div class="tier-rank"><div class="n">2</div><div>middle</div></div>
-          <div class="card" style="flex:1;">
-            <h3 class="accent-amber">Middleware — code-enforced, in-process</h3>
-            <pre class="compact"><code>const { observation, route } = await captureAndRoute(page, {
-  sessionId: 'login_flow', actionLabel: 'click_submit',
-});
-if (route.route === 'skip_vision')          { /* zero tokens */ }
-if (route.route === 'use_text_observation') await model({ text: route.context });
-if (route.route === 'use_full_vision')      await model({ image: screenshot });</code></pre>
-          </div>
-        </div>
-
-        <div class="tier">
-          <div class="tier-rank" style="background: linear-gradient(180deg, var(--cyan-dim), var(--surface-2));"><div class="n" style="color:white;">3</div><div style="color:white;">strongest</div></div>
-          <div class="card cyan" style="flex:1;">
-            <h3 style="color:var(--cyan);">Proxy — data-path, zero code change</h3>
-            <pre class="compact"><code>const client = new Anthropic({
-  baseURL: 'http://127.0.0.1:18443',  <span style="color:var(--cyan);">// ← only line that changes</span>
-});
-<span style="color:var(--muted);">// Your existing agent loop, unchanged.</span>
-await client.messages.create({ model: 'claude-sonnet-4-6', messages: [...] });</code></pre>
-            <p class="small mt-sm">
-              Proxy inspects the latest image block, runs <code>observe()</code>, rewrites the request before it hits Anthropic. Agent never sees JSON observations, no tool defs injected, no cache churn. <strong>The harness's 80% savings translate directly to a real client here.</strong>
-            </p>
-          </div>
-        </div>
-
-      </div>
-      <div class="note">
-        <div class="label">Speaker note</div>
-        Folder demo proves the pipeline. Adapter proves it in real-time loops. Proxy is the shape that asks least of the agent author — and is where cost numbers reproduce in production.
-      </div>
-    </section>
-
-    <!-- ============== SLIDE 10: DELIVERY-SURFACE LESSON ============== -->
-    <section class="slide" data-slide="10">
-      <div class="slide-chrome">
-        <span class="brand">THE LESSON</span>
-        <span class="num">10 / 13</span>
-      </div>
-      <h2 class="subtitle">The Delivery-Surface Lesson</h2>
-      <h1>We shipped MCP, dogfooded it, found it was <span class="accent-red">more expensive</span> — then built the proxy.</h1>
-
-      <p class="small mt-sm">
-        The pipeline savings are real. But the <strong>delivery surface matters as much as the pipeline.</strong> We learned this by measuring our own MCP server end-to-end inside Claude Code.
-      </p>
+      <h2 class="subtitle">Where StateLens Is Indispensable</h2>
+      <h1>Agentic loops — computer-use, browser automation, self-healing test agents.</h1>
+      <p class="small">Useful in Claude Code today as MCP observability. <strong>Indispensable in the long-running, screenshot-heavy agentic loop</strong> — exactly the shape of computer-use and automated UI testing, where the proxy's savings compound every turn.</p>
 
       <div class="grid-2 mt">
-        <div class="card red">
-          <h3 class="accent-red">Dogfood: MCP on a short Opus session</h3>
-          <p class="tiny mb-sm">Two Claude Code sessions, identical 12-frame login prompt, identical model. Run A used <code>Read</code>, Run B swapped to <code>statelens_observe</code>.</p>
-          <table class="compact">
-            <thead><tr><th>Metric</th><th class="num">Read</th><th class="num">MCP</th></tr></thead>
-            <tbody>
-              <tr><td>Total cost</td><td class="num">$0.66</td><td class="num"><span class="neg">$0.84</span></td></tr>
-              <tr><td>Output tokens</td><td class="num">2.1k</td><td class="num">3.5k</td></tr>
-              <tr><td>Cache write</td><td class="num">45.3k</td><td class="num">65.5k</td></tr>
-              <tr><td>Cache read</td><td class="num">657.8k</td><td class="num">685.1k</td></tr>
-            </tbody>
-          </table>
-          <p style="margin-top:6px; font-weight:700; color:var(--red); font-size:14px; text-align:center;">+27% MORE EXPENSIVE</p>
-        </div>
-
-        <div class="card">
-          <h3>Diagnosis — three overheads, all MCP, none pipeline</h3>
-          <ul>
-            <li><strong>Tool-call arg verbosity</strong> — <code>screenshot_path, session_id</code> &gt; <code>file_path</code></li>
-            <li><strong>MCP tool defs cached every turn</strong> — 4 tools × ~400 tokens × 14 turns = ~22k extra cache reads</li>
-            <li><strong>JSON responses churn cache</strong> — each observation is textually unique, forces writes</li>
-          </ul>
-          <p class="tiny mt-sm">Modeled breakeven on Opus: ~30–50 frames. Below that, MCP overhead dominates per-frame savings.</p>
-        </div>
-      </div>
-
-      <div class="card cyan mt">
-        <h3 style="color:var(--cyan);">The fix — proxy form, same pipeline, different surface</h3>
-        <table class="compact mt-sm">
-          <thead><tr><th>Surface</th><th class="num">12-frame login result</th></tr></thead>
-          <tbody>
-            <tr><td>MCP, short Opus session</td><td class="num"><span class="neg">+27% more expensive</span></td></tr>
-            <tr><td>Proxy, prev+curr per turn</td><td class="num"><span class="pos">−31.3%</span> · 100% lenient · 0 misses</td></tr>
-            <tr><td>Proxy, single-image per turn</td><td class="num"><span class="pos">−59.4% cheaper</span></td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="note">
-        <div class="label">Speaker note</div>
-        The honest story to remember. We shipped, measured, found the bad result, diagnosed (surface, not pipeline), and shipped the right surface. The reversal — same flow, same pipeline, +27% → −59% — is the most credible thing in the deck.
-      </div>
-    </section>
-
-    <!-- ============== SLIDE 11: NEXT WEDGE ============== -->
-    <section class="slide" data-slide="11">
-      <div class="slide-chrome">
-        <span class="brand">ROADMAP</span>
-        <span class="num">11 / 13</span>
-      </div>
-      <h2 class="subtitle">Next Wedge</h2>
-      <h1>StateLens for self-healing test agents.</h1>
-      <p class="small">Not implemented yet — but the clearest product expansion.</p>
-
-      <div class="grid-2 mt">
-        <div class="card">
-          <h3>Agentic testing loops repeatedly inspect, retry, and repair UI flows</h3>
-          <pre class="compact mt-sm"><code>test agent explores website
-  → generates or runs Playwright tests
-  → test fails
-  → healer replays the failing flow
-  → <span style="color:var(--cyan);">StateLens compresses repeated observations</span>
-  → agent receives compact failure context</code></pre>
-
-          <h3 class="mt">Planned integration</h3>
-          <ul>
-            <li>Playwright Test fixture: <code>lens.step("submit form", action)</code></li>
-            <li>StateLens timeline attached to test reports</li>
-            <li>compact healer context for failures</li>
-            <li>screenshots forwarded only when route is <code>use_full_vision</code></li>
-            <li>Stagehand adapter as a second target</li>
+        <div class="card cyan">
+          <h3 style="color: var(--primary);">Why the proxy form wins here</h3>
+          <pre class="compact mt-sm"><code>computer-use agent acts
+  → captures screenshot
+  → calls Anthropic <span style="color: var(--metric);">via StateLens proxy</span>
+  → proxy: <span style="color: var(--metric);">gate · OCR · score · selective Haiku</span>
+  → upstream sees text observation, not pixels
+  → agent reasons cheaply, loops 100× more</code></pre>
+          <ul class="mt-sm">
+            <li><strong>No code change</strong> — drop a baseURL into whatever computer-use SDK you're using</li>
+            <li><strong>Savings compound with loop length</strong> — per-frame compression dominates as sessions grow</li>
+            <li><strong>Action-failure detection</strong> — <code>action_failed</code> is the first signal a healer needs</li>
+            <li><strong>Observable</strong> — timeline doubles as failure context for retries and bug reports</li>
           </ul>
         </div>
         <div class="card amber">
-          <h3 class="accent-amber">The healer signal we already ship</h3>
-          <p class="small">
-            The <code>action_failed</code> event is the first healer signal shipped: when the test agent clicks submit and the screen does not move, the timeline records <em>the action that did nothing</em> — not just a quiet <code>no_change</code> gap.
-          </p>
+          <h3 class="accent-amber">Already shipped — usable today</h3>
+          <ul>
+            <li><strong>Proxy</strong> in front of any Anthropic-SDK computer-use loop</li>
+            <li><code>captureAndRoute()</code> Playwright adapter for browser-test agents</li>
+            <li><code>action_failed</code> healer signal for stuck-page detection</li>
+            <li>per-session timeline, exportable as test-failure artifact</li>
+          </ul>
 
-          <h3 class="mt">Positioning</h3>
-          <p class="small">
-            Playwright snapshots already handle DOM-heavy tests efficiently. StateLens focuses on <strong>screenshot-heavy fallback</strong> — visual UI, canvas, charts, custom widgets, and healer loops.
-          </p>
+          <h3 class="mt">Next on the roadmap</h3>
+          <ul>
+            <li>Playwright Test fixture: <code>lens.step("submit form", action)</code></li>
+            <li>Stagehand adapter for hosted browser agents</li>
+            <li>healer-loop failure-context packaging</li>
+            <li>agentic-testing cost dashboard</li>
+          </ul>
         </div>
       </div>
       <div class="note">
         <div class="label">Speaker note</div>
-        Pitch as roadmap, not current implementation. The core pipeline and routing primitives make it a natural next step.
+        Not pure roadmap. Computer-use and browser-test agents can use the proxy today and see the harness numbers. The healer / fixture work is incremental ergonomics on top of an already-shipped pipeline.
       </div>
     </section>
 
-    <!-- ============== SLIDE 12: WHY WE WIN ============== -->
-    <section class="slide" data-slide="12">
+    <!-- ============== SLIDE 8: WHY WE WIN ============== -->
+    <section class="slide" data-slide="8">
       <div class="slide-chrome">
         <span class="brand">WHY WE WIN</span>
-        <span class="num">12 / 13</span>
+        <span class="num">08 / 08</span>
       </div>
       <h2 class="subtitle">Why StateLens Wins</h2>
       <h1>Model-external. Inspectable. Drop-in.</h1>
@@ -1225,10 +1053,9 @@ await client.messages.create({ model: 'claude-sonnet-4-6', messages: [...] });</
             <h3>Moat in practice</h3>
             <ul>
               <li>local-first diffing pipeline + structured event timeline</li>
-              <li>honest VLM usage accounting (Haiku counted against us)</li>
-              <li><strong>drop-in proxy</strong> — one <code>baseURL</code>, no per-turn MCP tax</li>
-              <li>MCP adapter for editor environments the proxy can't reach</li>
-              <li>in-process route API for custom agents</li>
+              <li>honest VLM accounting (Haiku counted against us)</li>
+              <li><strong>drop-in proxy</strong> — best leverage in long-running agentic / computer-use loops</li>
+              <li>MCP adapter for editor observability (Claude Code, Cursor)</li>
               <li><strong>measured, reversed engineering finding</strong> (MCP +27% → proxy −31% to −59%)</li>
             </ul>
           </div>
@@ -1238,23 +1065,23 @@ await client.messages.create({ model: 'claude-sonnet-4-6', messages: [...] });</
           <div class="quad">
             <div>
               <div class="label">opaque · model-specific</div>
-              <div style="color:var(--muted);">Model-internal<br/>token pruning</div>
+              <div style="color: var(--muted);">Model-internal<br/>token pruning</div>
               <div class="label" style="opacity:0;">.</div>
             </div>
             <div>
               <div class="label">opaque · model-agnostic</div>
-              <div style="color:var(--muted);">Full screenshot<br/>reasoning</div>
+              <div style="color: var(--muted);">Full screenshot<br/>reasoning</div>
               <div class="label" style="opacity:0;">.</div>
             </div>
             <div>
               <div class="label">inspectable · model-specific</div>
-              <div style="color:var(--muted);">VLM-specific<br/>compression research</div>
+              <div style="color: var(--muted);">VLM-specific<br/>compression research</div>
               <div class="label" style="opacity:0;">.</div>
             </div>
-            <div style="background: linear-gradient(135deg, rgba(34,211,238,0.1), var(--surface));">
+            <div class="active">
               <div class="label">inspectable · model-agnostic</div>
-              <div style="color:var(--cyan); font-weight:700; font-size:15px;">StateLens <span class="star">★</span></div>
-              <div class="label" style="color:var(--cyan);">proxy · MCP · library · adapter</div>
+              <div style="color: var(--metric); font-weight:700; font-size:15px;">StateLens <span class="star">★</span></div>
+              <div class="label" style="color: var(--primary);">proxy · MCP · library · adapter</div>
             </div>
           </div>
 
@@ -1270,78 +1097,12 @@ await client.messages.create({ model: 'claude-sonnet-4-6', messages: [...] });</
       </div>
     </section>
 
-    <!-- ============== APPENDIX ============== -->
-    <section class="slide" data-slide="13">
-      <div class="slide-chrome">
-        <span class="brand">APPENDIX</span>
-        <span class="num">13 / 13</span>
-      </div>
-      <h2 class="subtitle">Optional Appendix</h2>
-      <h1>Feature inventory.</h1>
-
-      <div class="feat-cols three mt">
-        <div class="col">
-          <h3>Shipped now</h3>
-          <ul>
-            <li>Stage 1 visual gate (hash + pixelmatch)</li>
-            <li>Stage 2 spatial diff localization</li>
-            <li>Stage 3 OCR text diff on changed crops</li>
-            <li>Stage 4 importance scorer + OCR-reliability</li>
-            <li>Stage 5 selective VLM (Haiku, 768px)</li>
-            <li>Stage 6 timeline assembly</li>
-            <li>VLM cumulative usage tracking</li>
-            <li>reliability fallbacks</li>
-            <li><strong>Anthropic-compatible HTTP proxy</strong> — image rewrite, streaming pass-through, recursion guard</li>
-            <li>MCP server with 4 tools</li>
-            <li>path and base64 screenshot input</li>
-            <li>A/B token measurement harness</li>
-            <li>Haiku-judged accuracy harness</li>
-            <li>locked baselines: login (12) + checkout (10)</li>
-            <li>proxy-form baseline JSON committed</li>
-            <li><code>routeObservation()</code> route helper</li>
-            <li><code>captureAndRoute()</code> Playwright adapter</li>
-            <li>live Playwright demo</li>
-            <li><code>action_failed</code> event via <code>actionLabel</code></li>
-            <li>multi-lang OCR via <code>STATELENS_OCR_LANGS</code></li>
-            <li><code>RESULTS.md</code> + <code>PROXY_IMPLEMENTATION.md</code></li>
-          </ul>
-        </div>
-        <div class="col">
-          <h3 class="amber">Pitch as roadmap</h3>
-          <ul>
-            <li>Playwright Test fixture</li>
-            <li>healer-loop failure context</li>
-            <li>test report artifacts</li>
-            <li>Stagehand adapter</li>
-            <li>agentic testing cost dashboard</li>
-            <li>hosted/cloud proxy endpoint</li>
-            <li>OpenAI / Gemini proxy surfaces</li>
-          </ul>
-        </div>
-        <div class="col">
-          <h3 class="red">Do not claim yet</h3>
-          <ul>
-            <li>hosted multi-tenant proxy</li>
-            <li>savings on DOM-only Playwright tests</li>
-            <li>completed Playwright Test integration</li>
-            <li>completed Stagehand integration</li>
-            <li>production browser extension</li>
-            <li>non-Anthropic proxy support</li>
-          </ul>
-        </div>
-      </div>
-      <div class="note">
-        <div class="label">Speaker note</div>
-        Reference slide. Use to handle "what is / isn't shipped" Q&amp;A.
-      </div>
-    </section>
-
   </div>
 </div>
 
 <div class="hud">
   <button id="prev" title="Previous (←)">‹</button>
-  <span class="counter" id="counter">01 / 13</span>
+  <span class="counter" id="counter">01 / 08</span>
   <button id="next" title="Next (→)">›</button>
   <button id="notes" title="Toggle notes (N)">N</button>
   <button id="full" title="Fullscreen (F)">⛶</button>
